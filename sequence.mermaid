@@ -1,0 +1,57 @@
+sequenceDiagram
+    autonumber
+%% ------------------------------------------------------------------
+%% Components
+%% ------------------------------------------------------------------
+    actor Client
+    participant Controller as FileUploadController
+    participant Storage    as FileStorageService
+    participant ZipUtil
+    participant AsyncExec  as asyncExecutor
+    participant Processor  as ProcessingService
+    participant Embedding  as EmbeddingService
+    participant OpenAI     as AzureOpenAI
+    participant Repo       as FileEmbeddingRepository
+    participant DB         as Postgres_pgvector
+
+%% ------------------------------------------------------------------
+%% Happy-path upload
+%% ------------------------------------------------------------------
+    Client ->> Controller: POST /api/files/upload (multipart)
+    Controller ->> Storage: save(file)
+    Storage -->> Controller: Path
+
+    alt File is ZIP
+        Controller ->> ZipUtil: unzip()
+        ZipUtil -->> Controller: List<Path>
+        Controller ->> AsyncExec: processAsync(path)  <!-- async -->
+    else Direct file
+        Controller ->> AsyncExec: processAsync(path)  <!-- async -->
+    end
+
+    Controller -->> Client: 202 Accepted (UploadResponse)
+
+%% ------------------------------------------------------------------
+%% Asynchronous processing
+%% ------------------------------------------------------------------
+    activate AsyncExec
+    AsyncExec ->> Processor: processAsync(Path)
+    Processor ->> Processor: extractContent()
+    Processor ->> Embedding: generateEmbedding(text)
+    Embedding ->> OpenAI: getEmbeddings()
+    OpenAI -->> Embedding: vector (List<Float>)
+    Embedding -->> Processor: float[]
+    Processor ->> Repo: save(FileEmbedding)
+    Repo ->> DB: INSERT
+    DB -->> Repo: OK
+    Processor ->> Storage: delete(tempFile)
+    deactivate AsyncExec
+
+%% ------------------------------------------------------------------
+%% Error scenarios
+%% ------------------------------------------------------------------
+    alt File too large
+        Controller -->> Client: 413 Payload Too Large
+    else Unsupported extension
+        Controller -->> Client: 202 Accepted (added to rejected list)
+    end
