@@ -38,6 +38,17 @@ public class FileEmbedding {
     @CreationTimestamp
     private Instant createdAt;
 
+    @Lob
+    @Column(columnDefinition = "text")
+    private String content;
+
+    public FileEmbedding(String fileName, FileType type, float[] embedding, String content) {
+        this.fileName = fileName;
+        this.fileType = type;
+        this.embedding = embedding;
+        this.content  = content;
+    }
+
     // -- constructors --------------------------------------------------------
 
     protected FileEmbedding() { }

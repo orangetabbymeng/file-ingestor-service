@@ -17,6 +17,7 @@ create table if not exists "ingestor-db".file_embeddings (
                                                              file_name   varchar(255)    not null,
                                                              file_type   varchar(30)     not null,
                                                              embedding   vector(1536)    not null,
+                                                             content     text            not null,
                                                              created_at  timestamptz     default current_timestamp
 );
 

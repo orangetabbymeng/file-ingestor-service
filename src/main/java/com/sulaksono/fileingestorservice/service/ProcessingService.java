@@ -47,7 +47,8 @@ public class ProcessingService {
             }
 
             float[] vector = embeddingService.generateEmbedding(text);
-            repository.save(new FileEmbedding(file.getName(), type, vector));
+            repository.save(new FileEmbedding(
+                    file.getName(), type, vector, text));
 
             log.info("Stored embedding for {}", file.getName());
         } catch (Exception e) {
