@@ -6,6 +6,7 @@ import com.sulaksono.fileingestorservice.service.ProcessingService;
 import com.sulaksono.fileingestorservice.util.FileTypeResolver;
 import com.sulaksono.fileingestorservice.util.ZipUtil;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,61 +41,53 @@ public class FileUploadController {
     }
 
     @Operation(summary = "Upload one or many files or ZIP archives")
-    @PostMapping(value = "/upload",
+    @PostMapping(
+            value    = "/upload",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
-            produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<UploadResponse> upload(@RequestPart("files") @NotEmpty MultipartFile[] files) {
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<UploadResponse> upload(
+            @RequestPart("files")  @NotEmpty MultipartFile[] files,
+            @RequestPart("module") @NotBlank  String        module) {
 
         List<String> accepted = new ArrayList<>();
         List<String> rejected = new ArrayList<>();
 
-        for (MultipartFile f : files) {
+        for (MultipartFile file : files) {
 
-            /* -------------------------------------------------------------
-             * 1. Validate filename presence (avoid NPE on toLowerCase())   */
-            /* ----------------------------------------------------------- */
-            String originalName = f.getOriginalFilename();
-            if (!StringUtils.hasText(originalName)) {
+            String original = file.getOriginalFilename();
+            if (!StringUtils.hasText(original)) {
                 rejected.add("Unnamed file (empty filename)");
                 continue;
             }
 
-            /* -------------------------------------------------------------
-             * 2. Reject empty files early                                 */
-            /* ----------------------------------------------------------- */
-            if (f.isEmpty()) {
-                rejected.add(originalName + " (empty)");
+            if (file.isEmpty()) {
+                rejected.add(original + " (empty)");
                 continue;
             }
 
-            boolean isZip = originalName.toLowerCase().endsWith(".zip");
+            boolean isZip = original.toLowerCase().endsWith(".zip");
 
-            /* -------------------------------------------------------------
-             * 3. Extension whitelist (ignore unsupported direct uploads)   */
-            /* ----------------------------------------------------------- */
-            if (!isZip && FileTypeResolver.resolve(originalName) == FileType.UNKNOWN) {
-                rejected.add(originalName + " (unsupported type)");
+            if (!isZip && FileTypeResolver.resolve(original) == FileType.UNKNOWN) {
+                rejected.add(original + " (unsupported type)");
                 continue;
             }
 
             try {
                 if (isZip) {
-                    Path zipPath = storage.save(f);              // persist ZIP itself
-
-                    /* Extract & filter unsupported entries */
-                    ZipUtil.unzip(f, zipPath.getParent()).stream()
+                    Path zipPath = storage.save(file);                       // persist the ZIP
+                    ZipUtil.unzip(file, zipPath.getParent()).stream()
                             .filter(p -> FileTypeResolver.resolve(p.getFileName().toString()) != FileType.UNKNOWN)
-                            .forEach(processor::processAsync);
-
-                    accepted.add(originalName);
+                            .forEach(p -> processor.processAsync(p, module)); // async per entry
+                    accepted.add(original);
                 } else {
-                    Path stored = storage.save(f);
-                    processor.processAsync(stored);
-                    accepted.add(originalName);
+                    Path stored = storage.save(file);
+                    processor.processAsync(stored, module);                  // async
+                    accepted.add(original);
                 }
             } catch (Exception e) {
-                log.error("Upload failed for {}", originalName, e);
-                rejected.add(originalName + " (" + e.getMessage() + ")");
+                log.error("Upload failed for {}", original, e);
+                rejected.add(original + " (" + e.getMessage() + ")");
             }
         }
 
@@ -102,6 +95,5 @@ public class FileUploadController {
                 .body(new UploadResponse(accepted, rejected));
     }
 
-    /* Public record to avoid “exposed outside its defined visibility” warning */
     public record UploadResponse(List<String> accepted, List<String> rejected) { }
 }

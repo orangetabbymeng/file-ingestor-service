@@ -1,30 +1,22 @@
-/* ---------------------------------------------------------------------------
-   Bootstrap DDL for PostgreSQL + pgvector (manual creation).
-   Target schema  :  "ingestor-db"
-   Embedding size :  1536  (using text-embedding-ada-002 output)
----------------------------------------------------------------------------*/
+/* bootstrap DDL – pgvector + metadata columns */
+create schema if not exists ingestor_db;
 
--- 1. Enable required extensions (executed only once)
-create extension if not exists pgcrypto;   -- gen_random_uuid()
-create extension if not exists vector;     -- pgvector type
+create extension if not exists pgcrypto;
+create extension if not exists vector;
 
--- 2. Create (or keep) dedicated schema
-create schema if not exists "ingestor-db";
-
--- 3. Create main table with a dimensioned vector column
-create table if not exists "ingestor-db".file_embeddings (
-                                                             id          uuid            primary key default gen_random_uuid(),
-                                                             file_name   varchar(255)    not null,
-                                                             file_type   varchar(30)     not null,
-                                                             embedding   vector(1536)    not null,
-                                                             content     text            not null,
-                                                             created_at  timestamptz     default current_timestamp
+create table if not exists ingestor_db.file_embeddings
+(
+    id          uuid            primary key default gen_random_uuid(),
+    file_name   varchar(255)    not null,
+    path        varchar(1024)   not null,
+    module      varchar(128)    not null,
+    file_type   varchar(30)     not null,
+    embedding   vector(1536)    not null,
+    content     text            not null,
+    created_at  timestamptz     default current_timestamp
 );
 
--- 4. Similarity index (IVFFLAT)
---    The index must be built AFTER at least one row is present OR run with a populated table.
---    Requires the column be defined with an explicit dimension.
 create index if not exists file_embeddings_embedding_idx
-    on "ingestor-db".file_embeddings
+    on ingestor_db.file_embeddings
         using ivfflat (embedding vector_cosine_ops)
     with (lists = 100);

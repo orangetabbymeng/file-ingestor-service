@@ -25,12 +25,12 @@ public class FileEmbedding {
 
     private String fileName;
 
+    private String path;      //  e.g. src/main/resources/application.yaml
+    private String module;    //  e.g. order-service
+
     @Enumerated(EnumType.STRING)
     private FileType fileType;
 
-    /**
-     * Vector column (pgvector). Conversion handled by {@link FloatArrayVectorConverter}.
-     */
     @Column(columnDefinition = "vector")
     @Convert(converter = FloatArrayVectorConverter.class)
     private float[] embedding;
@@ -41,14 +41,20 @@ public class FileEmbedding {
     @Column(columnDefinition = "text")
     private String content;
 
-    public FileEmbedding(String fileName, FileType type, float[] embedding, String content) {
-        this.fileName = fileName;
-        this.fileType = type;
+    /* JPA needs a no-args ctor */
+    protected FileEmbedding() { }
+
+    public FileEmbedding(String fileName,
+                         String path,
+                         String module,
+                         FileType fileType,
+                         float[]  embedding,
+                         String   content) {
+        this.fileName  = fileName;
+        this.path      = path;
+        this.module    = module;
+        this.fileType  = fileType;
         this.embedding = embedding;
-        this.content  = content;
-    }
-
-    public FileEmbedding() {
-
+        this.content   = content;
     }
 }

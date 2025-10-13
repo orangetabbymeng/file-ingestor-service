@@ -24,47 +24,52 @@ public class ProcessingService {
 
     private static final Logger log = LoggerFactory.getLogger(ProcessingService.class);
 
-    private final EmbeddingService embeddingService;
-    private final FileEmbeddingRepository repository;
+    private final EmbeddingService            embeddingService;
+    private final FileEmbeddingRepository     repository;
 
-    public ProcessingService(EmbeddingService embeddingService,
-                             FileEmbeddingRepository repository) {
+    public ProcessingService(EmbeddingService embeddingService, FileEmbeddingRepository repository) {
         this.embeddingService = embeddingService;
         this.repository = repository;
     }
 
     @Async("asyncExecutor")
     @Transactional
-    public void processAsync(Path filePath) {
+    public void processAsync(Path filePath, String module) {
         try {
             File file = filePath.toFile();
             FileType type = FileTypeResolver.resolve(file.getName());
 
-            String text = extractContent(file);
-            if (text == null || text.isBlank()) {
-                log.warn("No text extracted from {} – skipping.", file.getName());
+            String text = FileUtils.readFileToString(file, StandardCharsets.UTF_8);
+            if (text.isBlank()) {
+                log.warn("Empty content in {} – skipping", file.getName());
                 return;
             }
 
-            float[] vector = embeddingService.generateEmbedding(text);
+            /* ------- build embedding payload with header --------------- */
+            String header = """
+                    ### path: %s
+                    ### type: %s
+                    ### module: %s
+                    ###
+                    """.formatted(filePath.toString(), type, module);
+            String payload = header + text;
+
+            float[] vector = embeddingService.generateEmbedding(payload);
+
             repository.save(new FileEmbedding(
-                    file.getName(), type, vector, text));
-            log.debug("Stored embedding content {}", text);
-            log.info("Stored embedding for {}", file.getName());
+                    file.getName(),
+                    filePath.toString(),
+                    module,
+                    type,
+                    vector,
+                    text));
+
+            log.info("Stored embedding for {} (module={})", file.getName(), module);
         } catch (Exception e) {
             log.error("Failed to process {}", filePath, e);
         } finally {
-            // Remove temporary file regardless of outcome
-            try {
-                FileUtils.forceDelete(filePath.toFile());
-            } catch (IOException ex) {
-                log.warn("Unable to delete temp {}", filePath, ex);
-            }
+            try { FileUtils.forceDelete(filePath.toFile()); }
+            catch (IOException ex) { log.warn("Unable to delete {}", filePath, ex); }
         }
-    }
-
-    /* simple text extraction – can be extended per file type */
-    private String extractContent(File file) throws IOException {
-        return FileUtils.readFileToString(file, StandardCharsets.UTF_8);
     }
 }
