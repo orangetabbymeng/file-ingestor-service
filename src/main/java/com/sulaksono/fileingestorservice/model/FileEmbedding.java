@@ -15,7 +15,7 @@ import java.util.UUID;
 @Entity
 @Table(
         name = "file_embeddings",
-        schema = "\"ingestor_db\""
+        schema = "ingestor_db"
 )
 public class FileEmbedding {
 
@@ -38,7 +38,6 @@ public class FileEmbedding {
     @CreationTimestamp
     private Instant createdAt;
 
-    @Lob
     @Column(columnDefinition = "text")
     private String content;
 
@@ -49,14 +48,7 @@ public class FileEmbedding {
         this.content  = content;
     }
 
-    // -- constructors --------------------------------------------------------
+    public FileEmbedding() {
 
-    protected FileEmbedding() { }
-
-    public FileEmbedding(String fileName, FileType fileType, float[] embedding) {
-        this.fileName = fileName;
-        this.fileType = fileType;
-        this.embedding = embedding;
     }
-
 }

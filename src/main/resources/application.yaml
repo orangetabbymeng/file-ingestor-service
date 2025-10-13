@@ -20,7 +20,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        default_schema: '"ingestor_db"'
+        default_schema: ingestor_db
 
   sql:
     init:
@@ -51,3 +51,9 @@ azure:
 
 storage:
   location: ${user.home}/file-ingestor/uploads
+
+logging:
+  level:
+    org:
+      hibernate:
+        SQL: DEBUG
