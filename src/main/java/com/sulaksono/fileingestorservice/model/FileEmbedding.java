@@ -3,6 +3,7 @@ package com.sulaksono.fileingestorservice.model;
 import com.sulaksono.fileingestorservice.model.converter.FloatArrayVectorConverter;
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
@@ -31,6 +32,7 @@ public class FileEmbedding {
     @Enumerated(EnumType.STRING)
     private FileType fileType;
 
+    @Setter
     @Column(columnDefinition = "vector")
     @Convert(converter = FloatArrayVectorConverter.class)
     private float[] embedding;
@@ -41,7 +43,8 @@ public class FileEmbedding {
     @Column(columnDefinition = "text")
     private String content;
 
-    /* JPA needs a no-args ctor */
+    private boolean deprecated = false;
+
     protected FileEmbedding() { }
 
     public FileEmbedding(String fileName,
@@ -49,12 +52,15 @@ public class FileEmbedding {
                          String module,
                          FileType fileType,
                          float[]  embedding,
-                         String   content) {
+                         String   content,
+                         boolean  deprecated) {   // <─ new parameter
         this.fileName  = fileName;
         this.path      = path;
         this.module    = module;
         this.fileType  = fileType;
         this.embedding = embedding;
         this.content   = content;
+        this.deprecated= deprecated;
     }
+
 }

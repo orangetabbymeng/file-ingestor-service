@@ -13,6 +13,7 @@ create table if not exists ingestor_db.file_embeddings
     file_type   varchar(30)     not null,
     embedding   vector(1536)    not null,
     content     text            not null,
+    deprecated  boolean         DEFAULT false,
     created_at  timestamptz     default current_timestamp
 );
 

@@ -40,21 +40,17 @@ public class ProcessingService {
             FileType type = FileTypeResolver.resolve(file.getName());
 
             String text = FileUtils.readFileToString(file, StandardCharsets.UTF_8);
-            if (text.isBlank()) {
-                log.warn("Empty content in {} – skipping", file.getName());
-                return;
-            }
+            if (text.isBlank()) return;
 
-            /* ------- build embedding payload with header --------------- */
             String header = """
                     ### path: %s
                     ### type: %s
                     ### module: %s
+                    ### deprecated: false
                     ###
                     """.formatted(filePath.toString(), type, module);
-            String payload = header + text;
 
-            float[] vector = embeddingService.generateEmbedding(payload);
+            float[] vector = embeddingService.generateEmbedding(header + text);
 
             repository.save(new FileEmbedding(
                     file.getName(),
@@ -62,14 +58,14 @@ public class ProcessingService {
                     module,
                     type,
                     vector,
-                    text));
+                    text,
+                    false));
 
-            log.info("Stored embedding for {} (module={})", file.getName(), module);
         } catch (Exception e) {
             log.error("Failed to process {}", filePath, e);
         } finally {
             try { FileUtils.forceDelete(filePath.toFile()); }
-            catch (IOException ex) { log.warn("Unable to delete {}", filePath, ex); }
+            catch (IOException ignored) { }
         }
     }
 }
