@@ -2,6 +2,7 @@ package com.sulaksono.fileingestorservice.service;
 
 import com.sulaksono.fileingestorservice.config.StorageProperties;
 import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -12,6 +13,7 @@ import java.nio.file.*;
 /**
  * Stores raw uploads on the local file system so processing can be retried independently.
  */
+@Getter
 @Service
 public class FileStorageService {
 

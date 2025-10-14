@@ -52,8 +52,11 @@ azure:
 storage:
   location: ${user.home}/file-ingestor/uploads
 
+vector:
+  include-path-depth: 2       # 0 = file name only; 2 = e.g. resources/application.yaml
+
 logging:
   level:
     org:
       hibernate:
-        SQL: ERROR
+        SQL: DEBUG
