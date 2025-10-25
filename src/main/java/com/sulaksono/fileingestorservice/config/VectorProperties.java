@@ -18,4 +18,7 @@ public class VectorProperties {
      */
     @Min(0)
     private int includePathDepth = 0;
+
+    private int chunkSizeTokens    = 800;   // window size
+    private int chunkOverlapTokens = 100;   // overlap
 }
