@@ -49,6 +49,13 @@ public class ProcessingService {
             String   rawText   = Files.readString(filePath, StandardCharsets.UTF_8);
             if (rawText.isBlank()) return;
 
+            /* ---------- short-circuit for POMs -------------------- */
+            if (type == FileType.POM) {
+                log.info("Skipping embedding for POM file: {}", filePath);
+                return;                         // nothing else to do for now, but I want to read properties automatically later on
+            }
+            /* ------------------------------------------------------ */
+
             /* -------- derive trimmed (relative) path ------------------ */
             Path   relative = storage.getRootDir().relativize(filePath).normalize();
             String trimmed  = trimDepth(relative, vecProps.getIncludePathDepth());
@@ -88,7 +95,7 @@ public class ProcessingService {
         } catch (Exception e) {
             log.error("Failed to process {}", filePath, e);
         } finally {
-            try { Files.deleteIfExists(filePath); } catch (Exception ignore) { }
+            try { Files.deleteIfExists(filePath); } catch (Exception e) { log.debug("Failed to delete {}", e.getMessage()); }
         }
     }
 
