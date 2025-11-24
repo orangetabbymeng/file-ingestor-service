@@ -23,7 +23,16 @@ jobs:
     steps:
       - name: Checkout to the branch
         uses: actions/checkout@v2
+        
+      - name: Set up JDK 21
+        uses: actions/setup-java@v2
+        with:
+          distribution: temurin   # or corretto, zulu, etc.
+          java-version: '21'
+          cache: maven            # optional: speeds up builds
 
+      - name: Build (unit tests, package, etc.)
+        run: mvn -B verify
       - name: Azure Login
         uses: azure/login@v2
         with:
@@ -45,5 +54,6 @@ jobs:
           imageToBuild: default/[parameters('containerAppName')]:${{ github.sha }}
           _buildArgumentsKey_: |
             _buildArgumentsValues_
+
 
 
