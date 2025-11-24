@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: {{ vars.IMAGE_NAME }}
+  IMAGE_NAME:${{ vars.IMAGE_NAME }}
 
 jobs:
   build-and-push:
