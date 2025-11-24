@@ -19,7 +19,8 @@ jobs:
     permissions: 
       id-token: write #This is required for requesting the OIDC JWT Token
       contents: read #Required when GH token is used to authenticate with private repo
-
+      actions: write
+      
     steps:
       - name: Checkout to the branch
         uses: actions/checkout@v2
@@ -54,6 +55,7 @@ jobs:
           imageToBuild: default/[parameters('containerAppName')]:${{ github.sha }}
           _buildArgumentsKey_: |
             _buildArgumentsValues_
+
 
 
 
