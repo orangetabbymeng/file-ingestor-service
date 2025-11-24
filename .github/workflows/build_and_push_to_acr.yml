@@ -1,9 +1,11 @@
 name: Build and push Docker image to ACR
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - master
 
 env:
   IMAGE_NAME:${{ vars.IMAGE_NAME }}
