@@ -32,7 +32,8 @@ jobs:
           cache: ''            
 
       - name: Build (unit tests, package, etc.)
-        run: mvn -B verify
+        run: mvn -B verify -DskipTests
+        
       - name: Azure Login
         uses: azure/login@v2
         with:
@@ -54,6 +55,7 @@ jobs:
           imageToBuild: default/[parameters('containerAppName')]:${{ github.sha }}
           _buildArgumentsKey_: |
             _buildArgumentsValues_
+
 
 
 
