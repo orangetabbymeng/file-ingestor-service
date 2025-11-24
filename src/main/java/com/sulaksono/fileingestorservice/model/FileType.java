@@ -8,6 +8,7 @@ import java.util.Locale;
 public enum FileType {
 
     JAVA(".java"),
+    POM(".pom"),
     MERMAID(".mmd", ".mermaid"),
     SQL(".sql"),
     PLANT_UML(".puml", ".plantuml"),

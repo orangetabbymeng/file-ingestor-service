@@ -4,7 +4,7 @@ import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 
 /**
- * Converts float[] ↔ pgvector textual representation.
+ * Converts float[] <-> pgvector textual representation.
  */
 @Converter(autoApply = true)
 public class FloatArrayVectorConverter implements AttributeConverter<float[], String> {

@@ -4,6 +4,7 @@ import com.sulaksono.fileingestorservice.model.FileType;
 import com.sulaksono.fileingestorservice.service.FileStorageService;
 import com.sulaksono.fileingestorservice.service.ProcessingService;
 import com.sulaksono.fileingestorservice.util.FileTypeResolver;
+import com.sulaksono.fileingestorservice.util.ZipPomUtil;
 import com.sulaksono.fileingestorservice.util.ZipUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.constraints.NotBlank;
@@ -18,9 +19,14 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 
 /**
  * REST endpoint for receiving individual files or ZIP batches.
@@ -56,33 +62,34 @@ public class FileUploadController {
         for (MultipartFile file : files) {
 
             String original = file.getOriginalFilename();
-            if (!StringUtils.hasText(original)) {
-                rejected.add("Unnamed file (empty filename)");
+
+            String rejectionReason = validate(file, original);
+            if (rejectionReason != null) {
+                rejected.add(rejectionReason);
                 continue;
             }
 
-            if (file.isEmpty()) {
-                rejected.add(original + " (empty)");
-                continue;
-            }
-
-            boolean isZip = original.toLowerCase().endsWith(".zip");
-
-            if (!isZip && FileTypeResolver.resolve(original) == FileType.UNKNOWN) {
-                rejected.add(original + " (unsupported type)");
-                continue;
-            }
+            boolean isZip = Optional.ofNullable(original)
+                    .map(n -> n.toLowerCase(Locale.ROOT).endsWith(".zip"))
+                    .orElse(false);
 
             try {
                 if (isZip) {
-                    Path zipPath = storage.save(file);                       // persist the ZIP
-                    ZipUtil.unzip(file, zipPath.getParent()).stream()
-                            .filter(p -> FileTypeResolver.resolve(p.getFileName().toString()) != FileType.UNKNOWN)
-                            .forEach(p -> processor.processAsync(p, module)); // async per entry
-                    accepted.add(original);
-                } else {
+                    Path zipPath = storage.save(file);             // persist the ZIP
+                    try {
+                        final String derivedModule = resolveModuleName(module, zipPath);
+
+                        ZipUtil.unzip(file, zipPath.getParent()).stream()
+                                .filter(p -> FileTypeResolver.resolve(p.getFileName().toString()) != FileType.UNKNOWN)
+                                .forEach(p -> processor.processAsync(p, derivedModule));
+
+                        accepted.add(original);
+                    } finally {
+                        deleteQuietly(zipPath);
+                    }
+                } else {                                          // regular file
                     Path stored = storage.save(file);
-                    processor.processAsync(stored, module);                  // async
+                    processor.processAsync(stored, module);
                     accepted.add(original);
                 }
             } catch (Exception e) {
@@ -90,10 +97,48 @@ public class FileUploadController {
                 rejected.add(original + " (" + e.getMessage() + ")");
             }
         }
-
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(new UploadResponse(accepted, rejected));
     }
 
     public record UploadResponse(List<String> accepted, List<String> rejected) { }
+
+    private String validate(MultipartFile file, String originalName) {
+
+        if (!StringUtils.hasText(originalName)) {
+            return "Unnamed file";
+        }
+        if (file.isEmpty()) {
+            return originalName + " (empty)";
+        }
+
+        boolean isZip = originalName.toLowerCase().endsWith(".zip");
+        if (!isZip && FileTypeResolver.resolve(originalName) == FileType.UNKNOWN) {
+            return originalName + " (unsupported type)";
+        }
+        return null;  // accept
+    }
+
+    private String resolveModuleName(String requestedModule, Path zipPath) {
+        if (!"from-package".equalsIgnoreCase(requestedModule)) {
+            return requestedModule;
+        }
+        try (InputStream in = Files.newInputStream(zipPath)) {
+            String art = ZipPomUtil.extractArtifactId(in);
+            return (art != null && !art.isBlank()) ? art : requestedModule;
+        } catch (IOException e) {
+            log.warn("Could not inspect POM inside {} – falling back to {}", zipPath, requestedModule, e);
+            return requestedModule;
+        }
+    }
+
+    private void deleteQuietly(Path path) {
+        try {
+            if (Files.deleteIfExists(path)) {
+                log.debug("Deleted temporary file {}", path);
+            }
+        } catch (IOException ex) {
+            log.warn("Unable to delete file {} – {}", path, ex.getMessage());
+        }
+    }
 }

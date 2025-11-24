@@ -45,22 +45,27 @@ public class FileEmbedding {
 
     private boolean deprecated = false;
 
+    private int    chunkIdx;      // 0-based
+    private int    chunkOf;       // total chunks
+
     protected FileEmbedding() { }
 
     public FileEmbedding(String fileName,
                          String path,
                          String module,
+                         int chunkIdx,
+                         int chunkOf,
                          FileType fileType,
-                         float[]  embedding,
-                         String   content,
-                         boolean  deprecated) {   // <─ new parameter
+                         float[] embedding,
+                         String content) {
         this.fileName  = fileName;
         this.path      = path;
         this.module    = module;
+        this.chunkIdx  = chunkIdx;
+        this.chunkOf   = chunkOf;
         this.fileType  = fileType;
         this.embedding = embedding;
         this.content   = content;
-        this.deprecated= deprecated;
     }
 
 }
