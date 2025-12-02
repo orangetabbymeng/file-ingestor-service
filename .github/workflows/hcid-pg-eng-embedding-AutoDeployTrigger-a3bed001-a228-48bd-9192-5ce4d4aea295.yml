@@ -35,10 +35,10 @@ jobs:
             --resource-group HCID_PLAYGROUND_AI_RG \
             --secrets pg-db-url="${{ secrets.PG_DB_URL }}" pg-db-user="${{ secrets.PG_DB_USER }}" pg-db-pass="${{ secrets.PG_DB_PASS }}" oai-api-endpoint="${{ secrets.OAI_API_ENDPOINT }}" oai-api-key="${{ secrets.OAI_API_KEY }}" oai-embedding-model-deployment="${{ secrets.OAI_EMBEDDING_MODEL_DEPLOYMENT }}"
 
-      - name: Write env.json and update Container App env (replace env array)
-        shell: bash
-        run: |
-          cat > env.json <<'EOF'
+          - name: Update container env via containers file
+            shell: bash
+            run: |
+              cat > env.json <<'EOF'
           [
             {"name":"SPRING_DATASOURCE_URL","value":"secretref:pg-db-url"},
             {"name":"PG_DB_USER","value":"secretref:pg-db-user"},
@@ -48,13 +48,14 @@ jobs:
             {"name":"OAI_EMBEDDING_MODEL_DEPLOYMENT","value":"secretref:oai-embedding-model-deployment"}
           ]
           EOF
-  
-          az containerapp update \
-          --name hcid-pg-eng-embedding \
-          --resource-group HCID_PLAYGROUND_AI_RG \
-          --set properties.template.containers[0].env=@env.json
           
-          shred -u env.json || rm -f env.json
+          az containerapp show --name hcid-pg-eng-embedding --resource-group HCID_PLAYGROUND_AI_RG --query "properties.template.containers" -o json > containers.json
+          
+          jq --argfile env env.json '.[0].env = $env' containers.json > new-containers.json
+          
+          az containerapp update --name hcid-pg-eng-embedding --resource-group HCID_PLAYGROUND_AI_RG --containers @new-containers.json
+          
+          shred -u env.json containers.json new-containers.json || rm -f env.json containers.json new-containers.json
 
           - name: Set up Docker Buildx
             uses: docker/setup-buildx-action@v2
