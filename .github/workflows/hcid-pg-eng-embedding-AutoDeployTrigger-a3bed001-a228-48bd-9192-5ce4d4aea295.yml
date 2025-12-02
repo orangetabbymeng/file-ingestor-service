@@ -48,7 +48,7 @@ jobs:
       - name: Deploy to Azure Container App
         uses: azure/container-apps-deploy-action@v2
         with:
-          imageToBuild: hcidplaygroundregistry.azurecr.io/hcid-pg-eng-embedding:${{ github.sha }}
+          imageToDeploy: hcidplaygroundregistry.azurecr.io/hcid-pg-eng-embedding:${{ github.sha }}
           containerAppName: hcid-pg-eng-embedding
           resourceGroup: HCID_PLAYGROUND_AI_RG
           registryUrl: hcidplaygroundregistry.azurecr.io
