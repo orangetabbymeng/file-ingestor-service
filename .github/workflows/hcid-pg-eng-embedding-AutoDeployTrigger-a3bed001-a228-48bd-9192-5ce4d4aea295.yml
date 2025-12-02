@@ -35,50 +35,50 @@ jobs:
             --resource-group HCID_PLAYGROUND_AI_RG \
             --secrets pg-db-url="${{ secrets.PG_DB_URL }}" pg-db-user="${{ secrets.PG_DB_USER }}" pg-db-pass="${{ secrets.PG_DB_PASS }}" oai-api-endpoint="${{ secrets.OAI_API_ENDPOINT }}" oai-api-key="${{ secrets.OAI_API_KEY }}" oai-embedding-model-deployment="${{ secrets.OAI_EMBEDDING_MODEL_DEPLOYMENT }}"
 
-      - name: Inject env vars one by one (creates one revision per call)
-        shell: bash
-        run: |
-          # index 0
-          az containerapp update \
-            --name hcid-pg-eng-embedding \
-            --resource-group HCID_PLAYGROUND_AI_RG \
-            --set properties.template.containers[0].env[0].name='SPRING_DATASOURCE_URL' \
-            --set properties.template.containers[0].env[0].value='secretref:pg-db-url'
-
-          # index 1
-          az containerapp update \
-            --name hcid-pg-eng-embedding \
-            --resource-group HCID_PLAYGROUND_AI_RG \
-            --set properties.template.containers[0].env[1].name='PG_DB_USER' \
-            --set properties.template.containers[0].env[1].value='secretref:pg-db-user'
-
-          # index 2
-          az containerapp update \
-            --name hcid-pg-eng-embedding \
-            --resource-group HCID_PLAYGROUND_AI_RG \
-            --set properties.template.containers[0].env[2].name='PG_DB_PASS' \
-            --set properties.template.containers[0].env[2].value='secretref:pg-db-pass'
-
-          # index 3
-          az containerapp update \
-            --name hcid-pg-eng-embedding \
-            --resource-group HCID_PLAYGROUND_AI_RG \
-            --set properties.template.containers[0].env[3].name='OAI_API_ENDPOINT' \
-            --set properties.template.containers[0].env[3].value='secretref:oai-api-endpoint'
-
-          # index 4
-          az containerapp update \
-            --name hcid-pg-eng-embedding \
-            --resource-group HCID_PLAYGROUND_AI_RG \
-            --set properties.template.containers[0].env[4].name='OAI_API_KEY' \
-            --set properties.template.containers[0].env[4].value='secretref:oai-api-key'
-
-          # index 5
-          az containerapp update \
-            --name hcid-pg-eng-embedding \
-            --resource-group HCID_PLAYGROUND_AI_RG \
-            --set properties.template.containers[0].env[5].name='OAI_EMBEDDING_MODEL_DEPLOYMENT' \
-            --set properties.template.containers[0].env[5].value='secretref:oai-embedding-model-deployment'
+#      - name: Inject env vars
+#        shell: bash
+#        run: |
+#          # index 0
+#          az containerapp update \
+#            --name hcid-pg-eng-embedding \
+#            --resource-group HCID_PLAYGROUND_AI_RG \
+#            --set properties.template.containers[0].env[0].name='SPRING_DATASOURCE_URL' \
+#            --set properties.template.containers[0].env[0].value='secretref:pg-db-url'
+#
+#          # index 1
+#          az containerapp update \
+#            --name hcid-pg-eng-embedding \
+#            --resource-group HCID_PLAYGROUND_AI_RG \
+#            --set properties.template.containers[0].env[1].name='PG_DB_USER' \
+#            --set properties.template.containers[0].env[1].value='secretref:pg-db-user'
+#
+#          # index 2
+#          az containerapp update \
+#            --name hcid-pg-eng-embedding \
+#            --resource-group HCID_PLAYGROUND_AI_RG \
+#            --set properties.template.containers[0].env[2].name='PG_DB_PASS' \
+#            --set properties.template.containers[0].env[2].value='secretref:pg-db-pass'
+#
+#          # index 3
+#          az containerapp update \
+#            --name hcid-pg-eng-embedding \
+#            --resource-group HCID_PLAYGROUND_AI_RG \
+#            --set properties.template.containers[0].env[3].name='OAI_API_ENDPOINT' \
+#            --set properties.template.containers[0].env[3].value='secretref:oai-api-endpoint'
+#
+#          # index 4
+#          az containerapp update \
+#            --name hcid-pg-eng-embedding \
+#            --resource-group HCID_PLAYGROUND_AI_RG \
+#            --set properties.template.containers[0].env[4].name='OAI_API_KEY' \
+#            --set properties.template.containers[0].env[4].value='secretref:oai-api-key'
+#
+#          # index 5
+#          az containerapp update \
+#            --name hcid-pg-eng-embedding \
+#            --resource-group HCID_PLAYGROUND_AI_RG \
+#            --set properties.template.containers[0].env[5].name='OAI_EMBEDDING_MODEL_DEPLOYMENT' \
+#            --set properties.template.containers[0].env[5].value='secretref:oai-embedding-model-deployment'
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
