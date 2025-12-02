@@ -35,52 +35,75 @@ jobs:
             --resource-group HCID_PLAYGROUND_AI_RG \
             --secrets pg-db-url="${{ secrets.PG_DB_URL }}" pg-db-user="${{ secrets.PG_DB_USER }}" pg-db-pass="${{ secrets.PG_DB_PASS }}" oai-api-endpoint="${{ secrets.OAI_API_ENDPOINT }}" oai-api-key="${{ secrets.OAI_API_KEY }}" oai-embedding-model-deployment="${{ secrets.OAI_EMBEDDING_MODEL_DEPLOYMENT }}"
 
-          - name: Update container env via containers file
-            shell: bash
-            run: |
-              cat > env.json <<'EOF'
-          [
-            {"name":"SPRING_DATASOURCE_URL","value":"secretref:pg-db-url"},
-            {"name":"PG_DB_USER","value":"secretref:pg-db-user"},
-            {"name":"PG_DB_PASS","value":"secretref:pg-db-pass"},
-            {"name":"OAI_API_ENDPOINT","value":"secretref:oai-api-endpoint"},
-            {"name":"OAI_API_KEY","value":"secretref:oai-api-key"},
-            {"name":"OAI_EMBEDDING_MODEL_DEPLOYMENT","value":"secretref:oai-embedding-model-deployment"}
-          ]
-          EOF
-          
-          az containerapp show --name hcid-pg-eng-embedding --resource-group HCID_PLAYGROUND_AI_RG --query "properties.template.containers" -o json > containers.json
-          
-          jq --argfile env env.json '.[0].env = $env' containers.json > new-containers.json
-          
-          az containerapp update --name hcid-pg-eng-embedding --resource-group HCID_PLAYGROUND_AI_RG --containers @new-containers.json
-          
-          shred -u env.json containers.json new-containers.json || rm -f env.json containers.json new-containers.json
+      - name: Inject env vars one by one (creates one revision per call)
+        shell: bash
+        run: |
+          # index 0
+          az containerapp update \
+            --name hcid-pg-eng-embedding \
+            --resource-group HCID_PLAYGROUND_AI_RG \
+            --set properties.template.containers[0].env[0].name='SPRING_DATASOURCE_URL' \
+            --set properties.template.containers[0].env[0].value='secretref:pg-db-url'
 
-          - name: Set up Docker Buildx
-            uses: docker/setup-buildx-action@v2
-          
-          - name: Login to ACR
-            uses: docker/login-action@v2
-            with:
-              registry: hcidplaygroundregistry.azurecr.io
-              username: ${{ secrets.HCIDPGENGEMBEDDING_REGISTRY_USERNAME }}
-              password: ${{ secrets.HCIDPGENGEMBEDDING_REGISTRY_PASSWORD }}
-          
-          - name: Build and push image
-            uses: docker/build-push-action@v4
-            with:
-              context: .
-              file: ./Dockerfile
-              push: true
-              tags: hcidplaygroundregistry.azurecr.io/hcid-pg-eng-embedding:${{ github.sha }}
-          
-          - name: Deploy to Azure Container App
-            uses: azure/container-apps-deploy-action@v2
-            with:
-              imageToDeploy: hcidplaygroundregistry.azurecr.io/hcid-pg-eng-embedding:${{ github.sha }}
-              containerAppName: hcid-pg-eng-embedding
-              resourceGroup: HCID_PLAYGROUND_AI_RG
-              registryUrl: hcidplaygroundregistry.azurecr.io
-              registryUsername: ${{ secrets.HCIDPGENGEMBEDDING_REGISTRY_USERNAME }}
-              registryPassword: ${{ secrets.HCIDPGENGEMBEDDING_REGISTRY_PASSWORD }}
+          # index 1
+          az containerapp update \
+            --name hcid-pg-eng-embedding \
+            --resource-group HCID_PLAYGROUND_AI_RG \
+            --set properties.template.containers[0].env[1].name='PG_DB_USER' \
+            --set properties.template.containers[0].env[1].value='secretref:pg-db-user'
+
+          # index 2
+          az containerapp update \
+            --name hcid-pg-eng-embedding \
+            --resource-group HCID_PLAYGROUND_AI_RG \
+            --set properties.template.containers[0].env[2].name='PG_DB_PASS' \
+            --set properties.template.containers[0].env[2].value='secretref:pg-db-pass'
+
+          # index 3
+          az containerapp update \
+            --name hcid-pg-eng-embedding \
+            --resource-group HCID_PLAYGROUND_AI_RG \
+            --set properties.template.containers[0].env[3].name='OAI_API_ENDPOINT' \
+            --set properties.template.containers[0].env[3].value='secretref:oai-api-endpoint'
+
+          # index 4
+          az containerapp update \
+            --name hcid-pg-eng-embedding \
+            --resource-group HCID_PLAYGROUND_AI_RG \
+            --set properties.template.containers[0].env[4].name='OAI_API_KEY' \
+            --set properties.template.containers[0].env[4].value='secretref:oai-api-key'
+
+          # index 5
+          az containerapp update \
+            --name hcid-pg-eng-embedding \
+            --resource-group HCID_PLAYGROUND_AI_RG \
+            --set properties.template.containers[0].env[5].name='OAI_EMBEDDING_MODEL_DEPLOYMENT' \
+            --set properties.template.containers[0].env[5].value='secretref:oai-embedding-model-deployment'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to ACR
+        uses: docker/login-action@v2
+        with:
+          registry: hcidplaygroundregistry.azurecr.io
+          username: ${{ secrets.HCIDPGENGEMBEDDING_REGISTRY_USERNAME }}
+          password: ${{ secrets.HCIDPGENGEMBEDDING_REGISTRY_PASSWORD }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: hcidplaygroundregistry.azurecr.io/hcid-pg-eng-embedding:${{ github.sha }}
+
+      - name: Deploy to Azure Container App
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          imageToDeploy: hcidplaygroundregistry.azurecr.io/hcid-pg-eng-embedding:${{ github.sha }}
+          containerAppName: hcid-pg-eng-embedding
+          resourceGroup: HCID_PLAYGROUND_AI_RG
+          registryUrl: hcidplaygroundregistry.azurecr.io
+          registryUsername: ${{ secrets.HCIDPGENGEMBEDDING_REGISTRY_USERNAME }}
+          registryPassword: ${{ secrets.HCIDPGENGEMBEDDING_REGISTRY_PASSWORD }}
