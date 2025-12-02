@@ -28,24 +28,31 @@ jobs:
           subscription-id: ${{ secrets.HCIDPGENGEMBEDDING_AZURE_SUBSCRIPTION_ID }}
 
       - name: Create/update Container App secrets
+        shell: bash
         run: |
-          az containerapp secret set \
-            --name hcid-pg-eng-embedding \
-            --resource-group HCID_PLAYGROUND_AI_RG \
-            --secrets \
-              pg-db-url="${{ secrets.PG_DB_URL }}" \
-              pg-db-user="${{ secrets.PG_DB_USER }}" \
-              pg-db-pass="${{ secrets.PG_DB_PASS }}" \
-              oai-api-endpoint="${{ secrets.OAI_API_ENDPOINT }}" \
-              oai-api-key="${{ secrets.OAI_API_KEY }}" \
-              oai-embedding-model-deployment="${{ secrets.OAI_EMBEDDING_MODEL_DEPLOYMENT }}"
+          az containerapp secret set --name hcid-pg-eng-embedding --resource-group HCID_PLAYGROUND_AI_RG --secrets pg-db-url="${{ secrets.PG_DB_URL }}" pg-db-user="${{ secrets.PG_DB_USER }}" pg-db-pass="${{ secrets.PG_DB_PASS }}" oai-api-endpoint="${{ secrets.OAI_API_ENDPOINT }}" oai-api-key="${{ secrets.OAI_API_KEY }}" oai-embedding-model-deployment="${{ secrets.OAI_EMBEDDING_MODEL_DEPLOYMENT }}"
 
-      - name: Expose secrets as environment variables (secretref) - replace env array
+      - name: Write env.json and update Container App env (replace env array)
+        shell: bash
         run: |
-            az containerapp update \
+          cat > env.json <<'EOF'
+          [
+            {"name":"SPRING_DATASOURCE_URL","value":"secretref:pg-db-url"},
+            {"name":"PG_DB_USER","value":"secretref:pg-db-user"},
+            {"name":"PG_DB_PASS","value":"secretref:pg-db-pass"},
+            {"name":"OAI_API_ENDPOINT","value":"secretref:oai-api-endpoint"},
+            {"name":"OAI_API_KEY","value":"secretref:oai-api-key"},
+            {"name":"OAI_EMBEDDING_MODEL_DEPLOYMENT","value":"secretref:oai-embedding-model-deployment"}
+          ]
+          EOF
+
+          az containerapp update \
             --name hcid-pg-eng-embedding \
             --resource-group HCID_PLAYGROUND_AI_RG \
-            --set properties.template.containers[0].env='[{"name":"SPRING_DATASOURCE_URL","value":"secretref:pg-db-url"},{"name":"PG_DB_USER","value":"secretref:pg-db-user"},{"name":"PG_DB_PASS","value":"secretref:pg-db-pass"},{"name":"OAI_API_ENDPOINT","value":"secretref:oai-api-endpoint"},{"name":"OAI_API_KEY","value":"secretref:oai-api-key"},{"name":"OAI_EMBEDDING_MODEL_DEPLOYMENT","value":"secretref:oai-embedding-model-deployment"}]'
+            --set properties.template.containers[0].env=@env.json
+
+          # remove the file so metadata is not left on the runner
+          shred -u env.json || rm -f env.json
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
