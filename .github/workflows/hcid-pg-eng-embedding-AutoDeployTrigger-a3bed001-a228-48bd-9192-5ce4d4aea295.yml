@@ -40,18 +40,18 @@ jobs:
               oai-api-key="${{ secrets.OAI_API_KEY }}" \
               oai-embedding-model-deployment="${{ secrets.OAI_EMBEDDING_MODEL_DEPLOYMENT }}"
 
-      - name: Expose secrets as environment variables (secretref)
+      - name: Expose secrets as environment variables (secretref) - replace env array
         run: |
           az containerapp update \
             --name hcid-pg-eng-embedding \
             --resource-group HCID_PLAYGROUND_AI_RG \
-            --set-template 'properties.template.containers[0].env=[
+            --set properties.template.containers[0].env='[
               {"name":"SPRING_DATASOURCE_URL","value":"secretref:pg-db-url"},
               {"name":"PG_DB_USER","value":"secretref:pg-db-user"},
               {"name":"PG_DB_PASS","value":"secretref:pg-db-pass"},
-              {"name":"SPRING_AZURE_OPENAI_ENDPOINT","value":"secretref:oai-api-endpoint"},
-              {"name":"SPRING_AZURE_OPENAI_API_KEY","value":"secretref:oai-api-key"},
-              {"name":"SPRING_AZURE_OPENAI_EMBEDDING_MODEL_DEPLOYMENT","value":"secretref:oai-embedding-model-deployment"}
+              {"name":"OAI_API_ENDPOINT","value":"secretref:oai-api-endpoint"},
+              {"name":"OAI_API_KEY","value":"secretref:oai-api-key"},
+              {"name":"OAI_EMBEDDING_MODEL_DEPLOYMENT","value":"secretref:oai-embedding-model-deployment"}
             ]'
 
       - name: Set up Docker Buildx
