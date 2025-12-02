@@ -44,7 +44,6 @@ spring:
         size: 2
 
 
-
 azure:
   openai:
     endpoint: ${oai_api_endpoint}
@@ -62,3 +61,7 @@ logging:
     org:
       hibernate:
         SQL: DEBUG
+auth:
+  basic:
+    user-name: ${basic_auth_user}
+    password: ${basic_auth_pass}

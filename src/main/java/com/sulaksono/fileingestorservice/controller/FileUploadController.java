@@ -7,6 +7,7 @@ import com.sulaksono.fileingestorservice.util.FileTypeResolver;
 import com.sulaksono.fileingestorservice.util.ZipPomUtil;
 import com.sulaksono.fileingestorservice.util.ZipUtil;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import org.slf4j.Logger;
@@ -14,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -52,6 +54,8 @@ public class FileUploadController {
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
     )
+    @SecurityRequirement(name = "basicAuth")
+    @PreAuthorize("hasRole('UPLOAD')")
     public ResponseEntity<UploadResponse> upload(
             @RequestPart("files")  @NotEmpty MultipartFile[] files,
             @RequestPart("module") @NotBlank  String        module) {

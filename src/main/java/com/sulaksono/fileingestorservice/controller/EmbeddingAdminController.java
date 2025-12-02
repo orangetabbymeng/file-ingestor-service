@@ -2,10 +2,12 @@ package com.sulaksono.fileingestorservice.controller;
 
 import com.sulaksono.fileingestorservice.repository.FileEmbeddingRepository;
 import com.sulaksono.fileingestorservice.service.ReembeddingService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.transaction.Transactional;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -19,6 +21,8 @@ public class EmbeddingAdminController {
     /* ------------------------------------------------------------------
        SOFT delete or restore a whole module
        ------------------------------------------------------------------ */
+    @PreAuthorize("hasRole('DEPRECATE')")
+    @SecurityRequirement(name = "basicAuth")
     @PatchMapping("/module/{module}")
     public ResponseEntity<?> markDeprecated(@PathVariable String module,
                                             @RequestParam(defaultValue = "true") boolean deprecated) {
@@ -32,6 +36,8 @@ public class EmbeddingAdminController {
        HARD delete – physical removal (irreversible)
        ------------------------------------------------------------------ */
     @DeleteMapping("/module/{module}")
+    @SecurityRequirement(name = "basicAuth")
+    @PreAuthorize("hasRole('DELETE')")
     @Transactional
     public ResponseEntity<?> hardDelete(@PathVariable @NotBlank String module) {
         repo.deleteByModule(module);
