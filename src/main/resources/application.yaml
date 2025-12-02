@@ -11,12 +11,12 @@ spring:
       max-request-size: 100MB
 
   datasource:
-    url: ${pg-db-url}
+    url: ${pg_db_url}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
-    username: ${pg-db-user}
-    password: ${pg-db-pass}
+    username: ${pg_db_user}
+    password: ${pg_db_pass}
 
   jpa:
     hibernate:
@@ -47,9 +47,9 @@ spring:
 
 azure:
   openai:
-    endpoint: ${oai-api-endpoint}
-    api-key: ${oai-api-key}
-    embedding-model-deployment: text-embedding-ada-002-code-embedding
+    endpoint: ${oai_api_endpoint}
+    api-key: ${oai_api_key}
+    embedding-model-deployment: ${oai_embedding_model_deployment}
 
 storage:
   location: ${user.home}/file-ingestor/uploads
