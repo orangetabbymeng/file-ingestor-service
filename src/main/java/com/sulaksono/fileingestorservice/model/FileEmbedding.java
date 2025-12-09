@@ -43,10 +43,12 @@ public class FileEmbedding {
     @Column(columnDefinition = "text")
     private String content;
 
-    private boolean deprecated = false;
+    private final boolean deprecated = false;
 
     private int    chunkIdx;      // 0-based
     private int    chunkOf;       // total chunks
+
+    private String moduleVersion;
 
     protected FileEmbedding() { }
 
@@ -57,7 +59,8 @@ public class FileEmbedding {
                          int chunkOf,
                          FileType fileType,
                          float[] embedding,
-                         String content) {
+                         String content,
+                         String moduleVersion) {
         this.fileName  = fileName;
         this.path      = path;
         this.module    = module;
@@ -66,6 +69,7 @@ public class FileEmbedding {
         this.fileType  = fileType;
         this.embedding = embedding;
         this.content   = content;
+        this.moduleVersion = moduleVersion;
     }
 
 }

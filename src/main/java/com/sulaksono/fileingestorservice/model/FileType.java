@@ -8,12 +8,18 @@ import java.util.Locale;
 public enum FileType {
 
     JAVA(".java"),
+    HTML(".html", ".htm"),
+    JAVASCRIPT(".js"),
+    CSS(".css"),
     POM(".pom"),
     MERMAID(".mmd", ".mermaid"),
     SQL(".sql"),
     PLANT_UML(".puml", ".plantuml"),
     DRAWIO(".drawio", ".dio"),
     MARKDOWN(".md", ".markdown", ".txt"),
+    XML(".xml"),
+    JSON(".json"),
+    PROPERTIES(".properties"),
     UNKNOWN("");
 
     private final String[] extensions;

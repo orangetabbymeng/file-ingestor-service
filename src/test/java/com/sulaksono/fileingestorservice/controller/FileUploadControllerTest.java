@@ -61,7 +61,7 @@ class FileUploadControllerTest {
         Path dummy = Path.of("/tmp/example.md");
 
         Mockito.when(storage.save(any())).thenReturn(dummy);
-        Mockito.doNothing().when(processor).processAsync(dummy, "order-service");
+        Mockito.doNothing().when(processor).processAsync(dummy, "order-service", "1");
 
         mvc.perform(multipart("/api/files/upload")
                         .file(file)

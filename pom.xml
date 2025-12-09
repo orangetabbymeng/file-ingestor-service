@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.sulaksono</groupId>
     <artifactId>file-ingestor-service</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.2-SNAPSHOT</version>
     <name>file-ingestor-service</name>
     <description>file-ingestor-service</description>
     <url/>

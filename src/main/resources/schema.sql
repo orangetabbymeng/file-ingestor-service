@@ -17,6 +17,7 @@ create table if not exists ingestor_db.file_embeddings
     chunk_of    int           not null,
     embedding   vector(1536)  not null,
     content     text          not null,
+    module_version varchar(50)        ,
     created_at  timestamptz   default current_timestamp
 );
 

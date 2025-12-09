@@ -58,9 +58,8 @@ vector:
 
 logging:
   level:
-    org:
-      hibernate:
-        SQL: DEBUG
+    org.hibernate.SQL: DEBUG
+    com.sulaksono.fileingestorservice: DEBUG
 auth:
   basic:
     user-name: ${basic_auth_user}

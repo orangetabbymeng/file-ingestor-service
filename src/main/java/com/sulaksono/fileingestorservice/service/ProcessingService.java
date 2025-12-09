@@ -42,8 +42,8 @@ public class ProcessingService {
 
     @Async("asyncExecutor")
     @Transactional
-    public void processAsync(Path filePath, String module) {
-
+    public void processAsync(Path filePath, String module, String moduleVersion) {
+        log.debug("Processing {}, {}, {}", filePath, module,moduleVersion);
         try {
             FileType type      = FileTypeResolver.resolve(filePath.getFileName().toString());
             String   rawText   = Files.readString(filePath, StandardCharsets.UTF_8);
@@ -79,7 +79,8 @@ public class ProcessingService {
                         idx, chunks.size(),
                         type,
                         vector,
-                        chunk
+                        chunk,
+                        moduleVersion
                         ));
 
             }

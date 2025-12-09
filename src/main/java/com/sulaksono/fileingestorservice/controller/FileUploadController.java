@@ -58,7 +58,8 @@ public class FileUploadController {
     @PreAuthorize("hasRole('UPLOAD')")
     public ResponseEntity<UploadResponse> upload(
             @RequestPart("files")  @NotEmpty MultipartFile[] files,
-            @RequestPart("module") @NotBlank  String        module) {
+            @RequestPart("module") @NotBlank String module,
+            @RequestPart("fileVersion") String fileVersion) {
 
         List<String> accepted = new ArrayList<>();
         List<String> rejected = new ArrayList<>();
@@ -82,10 +83,11 @@ public class FileUploadController {
                     Path zipPath = storage.save(file);             // persist the ZIP
                     try {
                         final String derivedModule = resolveModuleName(module, zipPath);
+                        final String derivedVersion = resolveModuleVersion(zipPath);
 
                         ZipUtil.unzip(file, zipPath.getParent()).stream()
                                 .filter(p -> FileTypeResolver.resolve(p.getFileName().toString()) != FileType.UNKNOWN)
-                                .forEach(p -> processor.processAsync(p, derivedModule));
+                                .forEach(p -> processor.processAsync(p, derivedModule, derivedVersion));
 
                         accepted.add(original);
                     } finally {
@@ -93,7 +95,7 @@ public class FileUploadController {
                     }
                 } else {                                          // regular file
                     Path stored = storage.save(file);
-                    processor.processAsync(stored, module);
+                    processor.processAsync(stored, module, fileVersion);
                     accepted.add(original);
                 }
             } catch (Exception e) {
@@ -133,6 +135,15 @@ public class FileUploadController {
         } catch (IOException e) {
             log.warn("Could not inspect POM inside {} – falling back to {}", zipPath, requestedModule, e);
             return requestedModule;
+        }
+    }
+
+    private String resolveModuleVersion(Path zipPath) {
+        try (InputStream in = Files.newInputStream(zipPath)) {
+            return ZipPomUtil.extractVersion(in);
+        } catch (IOException e) {
+            log.debug("Could not extract version from {} – {}", zipPath, e.getMessage());
+            return null;
         }
     }
 

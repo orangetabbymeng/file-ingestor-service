@@ -8,15 +8,25 @@ import java.nio.file.Path;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+
+/**
+ * Utility for extracting information from a {@code pom.xml} contained in a ZIP file.
+ */
 public final class ZipPomUtil {
 
-    private ZipPomUtil() { }
+    private ZipPomUtil() {}
 
-    /**
-     * Returns the first <artifactId> found in a POM stored in the ZIP, or null
-     * if no readable POM is present.
-     */
     public static String extractArtifactId(InputStream zipStream) {
+        return extractPomField(zipStream, Field.ARTIFACT_ID);
+    }
+
+    public static String extractVersion(InputStream zipStream) {
+        return extractPomField(zipStream, Field.VERSION);
+    }
+
+    private enum Field { ARTIFACT_ID, VERSION }
+
+    private static String extractPomField(InputStream zipStream, Field field) {
         try (ZipInputStream zin = new ZipInputStream(zipStream)) {
             ZipEntry entry;
             while ((entry = zin.getNextEntry()) != null) {
@@ -27,10 +37,15 @@ public final class ZipPomUtil {
 
                 MavenXpp3Reader reader = new MavenXpp3Reader();
                 Model model           = reader.read(zin, false);
-                return firstNonNull(model.getArtifactId(),
-                        model.getParent() != null ? model.getParent().getArtifactId() : null);
+
+                return switch (field) {
+                    case ARTIFACT_ID -> firstNonNull(model.getArtifactId(),
+                            model.getParent() != null ? model.getParent().getArtifactId() : null);
+                    case VERSION -> firstNonNull(model.getVersion(),
+                            model.getParent() != null ? model.getParent().getVersion() : null);
+                };
             }
-        } catch (Exception ignored) { /* just fall through and return null */ }
+        } catch (Exception ignored) { /* fall through and return null */ }
         return null;
     }
 
