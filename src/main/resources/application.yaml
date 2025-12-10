@@ -58,7 +58,7 @@ vector:
 
 logging:
   level:
-    org.hibernate.SQL: DEBUG
+    org.hibernate.SQL: ERROR
     com.sulaksono.fileingestorservice: DEBUG
 auth:
   basic:

@@ -20,6 +20,7 @@ public enum FileType {
     XML(".xml"),
     JSON(".json"),
     PROPERTIES(".properties"),
+    DOCKERFILE(".dockerfile","dockerfile"),
     UNKNOWN("");
 
     private final String[] extensions;

@@ -10,6 +10,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -29,10 +30,6 @@ public class ProcessingService {
 
     private static final Logger log = LoggerFactory.getLogger(ProcessingService.class);
 
-    /* ---------------------------------------------------------------
-       hard-coded model limit for ada-002 (8191 tokens); override in
-       VectorProperties if using different embedding model
-       ------------------------------------------------------------- */
     private static final int MODEL_TOKEN_LIMIT = 8191;
 
     private final EmbeddingService         embeddingService;
@@ -43,11 +40,22 @@ public class ProcessingService {
     @Async("asyncExecutor")
     @Transactional
     public void processAsync(Path filePath, String module, String moduleVersion) {
-        log.debug("Processing {}, {}, {}", filePath, module,moduleVersion);
+        String requestId = MDC.get("requestId");
+        log.debug("event=processing_start requestId={} file={} module={} version={}",
+                requestId, filePath, module, moduleVersion);
+
         try {
-            FileType type      = FileTypeResolver.resolve(filePath.getFileName().toString());
-            String   rawText   = Files.readString(filePath, StandardCharsets.UTF_8);
-            if (rawText.isBlank()) return;
+            FileType type    = FileTypeResolver.resolve(filePath.getFileName().toString());
+
+            String   rawText = Files.readString(filePath, StandardCharsets.UTF_8);
+            log.debug("event=file_read requestId={} file={} size={}bytes",
+                    requestId, filePath, rawText.length());
+
+            if (rawText.isBlank()) {
+                log.info("event=processing_skipped requestId={} file={} reason=empty_content",
+                        requestId, filePath);
+                return;
+            }
 
             /* -------- derive trimmed (relative) path ------------------ */
             Path   relative = storage.getRootDir().relativize(filePath).normalize();
@@ -58,17 +66,21 @@ public class ProcessingService {
                     vecProps.getChunkSizeTokens(),
                     vecProps.getChunkOverlapTokens());
 
+            log.debug("event=token_split requestId={} file={} chunks={} window={} overlap={}",
+                    requestId, filePath, chunks.size(),
+                    vecProps.getChunkSizeTokens(), vecProps.getChunkOverlapTokens());
+
             for (int idx = 0; idx < chunks.size(); idx++) {
                 String chunk = chunks.get(idx);
 
                 String header = """
-                        ### path: %s
-                        ### type: %s
-                        ### module: %s
-                        ### chunk: %d/%d
-                        ### deprecated: false
-                        ###
-                        """.formatted(trimmed, type, module, idx, chunks.size());
+                 ### path: %s
+                 ### type: %s
+                 ### module: %s
+                 ### chunk: %d/%d
+                 ### deprecated: false
+                 ###
+                 """.formatted(trimmed, type, module, idx, chunks.size());
 
                 float[] vector = embeddingService.generateEmbedding(header + chunk);
 
@@ -81,19 +93,33 @@ public class ProcessingService {
                         vector,
                         chunk,
                         moduleVersion
-                        ));
+                ));
 
+                log.info("event=chunk_persisted requestId={} file={} chunkIdx={}/{}",
+                        requestId, filePath.getFileName(), idx + 1, chunks.size());
             }
-            log.info("Stored {} chunk(s) for {} (module={})", chunks.size(), trimmed, module);
+
+            log.info("event=processing_complete requestId={} file={} module={} chunks={}",
+                    requestId, trimmed, module, chunks.size());
 
         } catch (Exception e) {
-            log.error("Failed to process {}", filePath, e);
+            log.error("event=processing_error requestId={} file={} error={}",
+                    requestId, filePath, e, e);
         } finally {
-            try { Files.deleteIfExists(filePath); } catch (Exception e) { log.debug("Failed to delete {}", e.getMessage()); }
+            try {
+                if (Files.deleteIfExists(filePath)) {
+                    log.debug("event=file_delete requestId={} file={} result=deleted",
+                            requestId, filePath);
+                } else {
+                    log.debug("event=file_delete requestId={} file={} result=not_found",
+                            requestId, filePath);
+                }
+            } catch (Exception e) {
+                log.debug("event=file_delete_failed requestId={} file={} msg={}",
+                        requestId, filePath, e.getMessage());
+            }
         }
     }
-
-    /* --------------------------------------------------------------- */
 
     private List<String> splitIntoChunks(String text, int window, int overlap) {
         int totalTokens = TokenizerUtil.countTokens(text);

@@ -6,6 +6,7 @@ import com.azure.ai.openai.models.EmbeddingsOptions;
 import com.sulaksono.fileingestorservice.config.AzureOpenAIProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -28,20 +29,28 @@ public class EmbeddingService {
 
     public float[] generateEmbedding(String input) {
 
-        EmbeddingsOptions options = new EmbeddingsOptions(List.of(input));
+        String requestId = MDC.get("requestId");
+        log.debug("event=embedding_start requestId={} inputLength={}", requestId, input.length());
 
-        Embeddings response = client.getEmbeddings(props.getEmbeddingModelDeployment(), options);
+        try {
+            EmbeddingsOptions options = new EmbeddingsOptions(List.of(input));
+            Embeddings response = client.getEmbeddings(props.getEmbeddingModelDeployment(), options);
 
-        List<Float> list = response.getData()
-                .getFirst()          // first EmbeddingItem
-                .getEmbedding();
+            List<Float> list = response.getData()
+                    .getFirst()   // first EmbeddingItem
+                    .getEmbedding();
 
-        float[] vector = new float[list.size()];
-        for (int i = 0; i < list.size(); i++) {
-            vector[i] = list.get(i);
+            float[] vector = new float[list.size()];
+            for (int i = 0; i < list.size(); i++) {
+                vector[i] = list.get(i);
+            }
+
+            log.info("event=embedding_success requestId={} dimension={}", requestId, vector.length);
+            return vector;
+
+        } catch (Exception e) {
+            log.error("event=embedding_error requestId={} error={}", requestId, e, e);
+            throw e;
         }
-
-        log.debug("Received embedding vector of dimension {}", vector.length);
-        return vector;
     }
 }

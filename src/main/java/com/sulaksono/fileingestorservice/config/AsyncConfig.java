@@ -29,6 +29,7 @@ public class AsyncConfig {
         executor.setMaxPoolSize(pool.getMaxSize());
         executor.setQueueCapacity(pool.getQueueCapacity());
         executor.setThreadNamePrefix(props.getThreadNamePrefix());
+        executor.setTaskDecorator(new MDCTaskDecorator());
 
         executor.initialize();
         return executor;
