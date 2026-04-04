@@ -19,16 +19,17 @@ WORKDIR ${APP_HOME}
 
 # Copy the packaged jar (e.g. file-ingestor-service-0.0.1-SNAPSHOT.jar)
 COPY --from=build /workspace/target/*.jar app.jar
+COPY applicationinsights.json /app/applicationinsights.json
 
 # Download Azure Application Insights Java agent
-ARG AI_AGENT_VERSION=3.4.17
+ARG AI_AGENT_VERSION=3.7.8
 RUN wget -q \
     https://repo1.maven.org/maven2/com/microsoft/azure/applicationinsights-agent/${AI_AGENT_VERSION}/applicationinsights-agent-${AI_AGENT_VERSION}.jar \
     -O applicationinsights-agent.jar
 
 # Create non-root user
 RUN useradd --create-home appuser \
- && chown appuser:appuser app.jar applicationinsights-agent.jar
+ && chown appuser:appuser app.jar applicationinsights-agent.jar applicationinsights.json
 USER appuser
 
 # Expose the Spring Boot port
@@ -36,5 +37,6 @@ EXPOSE 8080
 
 # JVM options and agent
 ENV JAVA_OPTS="-Xms256m -Xmx512m -Djava.security.egd=file:/dev/./urandom"
+ENV APPLICATIONINSIGHTS_CONFIGURATION_FILE=/app/applicationinsights.json
 
 ENTRYPOINT ["sh","-c","exec java $JAVA_OPTS -javaagent:/app/applicationinsights-agent.jar -jar /app/app.jar"]

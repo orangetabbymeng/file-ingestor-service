@@ -21,6 +21,8 @@ public enum FileType {
     JSON(".json"),
     PROPERTIES(".properties"),
     DOCKERFILE(".dockerfile","dockerfile"),
+    CSV(".csv"),
+    TXT(".txt"),
     UNKNOWN("");
 
     private final String[] extensions;
