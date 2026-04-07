@@ -58,8 +58,9 @@ vector:
 
 logging:
   level:
-    org.hibernate.SQL: ERROR
-    com.sulaksono.fileingestorservice: DEBUG
+    root: ${root_log_level:INFO}
+    org.hibernate.SQL: ${hibernate_log_level:INFO}
+    com.sulaksono.fileingestorservice: ${service_log_level:INFO}
 auth:
   basic:
     user-name: ${basic_auth_user}
