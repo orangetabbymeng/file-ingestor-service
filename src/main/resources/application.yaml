@@ -14,7 +14,15 @@ spring:
     url: ${pg_db_url}
     driver-class-name: org.postgresql.Driver
     hikari:
+      pool-name: engineeringEmbeddingHikariCP
       maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      validation-timeout: 5000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      keepalive-time: 0
+      initialization-fail-timeout: 1
     username: ${pg_db_user}
     password: ${pg_db_pass}
 
