@@ -56,7 +56,7 @@ public class FileUploadController {
     @PreAuthorize("hasAnyRole('embedding-user','embedding-admin','assistant-admin')")
     public ResponseEntity<UploadResponse> upload(
             @RequestPart("files") @NotEmpty MultipartFile[] files,
-            @RequestPart("module") @NotBlank String module,
+            @RequestPart(name = "module", required = false) String module,
             @RequestPart("fileVersion") String fileVersion,
             @RequestPart("repoCloneUrl") String repoCloneUrl,
             @RequestPart("repoRef") String repoRef,
@@ -99,7 +99,7 @@ public class FileUploadController {
                         log.debug("event=zip_saved requestId={} path={}", requestId, zipPath);
 
                         try {
-                            final String derivedModule = resolveModuleName(module, zipPath);
+                            final String derivedModule = resolveModuleForFile(module, true, zipPath);
                             final String derivedVersion = resolveModuleVersion(zipPath);
                             log.debug("event=zip_metadata requestId={} derivedModule={} derivedVersion={}",
                                     requestId, derivedModule, derivedVersion);
@@ -119,7 +119,8 @@ public class FileUploadController {
                     } else {                                          // regular file
                         Path stored = storage.save(file);
                         log.debug("event=file_saved requestId={} path={}", requestId, stored);
-                        processor.processAsync(stored, module, fileVersion, repoCloneUrl, repoRef, pathInRepo);
+                        String effectiveModule = resolveModuleForFile(module, false, null);
+                        processor.processAsync(stored, effectiveModule, fileVersion, repoCloneUrl, repoRef, pathInRepo);
                         accepted.add(original);
                         log.info("event=file_accepted requestId={} fileName={}", requestId, original);
                     }
@@ -197,6 +198,26 @@ public class FileUploadController {
         } catch (IOException ex) {
             log.warn("event=temp_delete_failed requestId={} path={} msg={}",
                     MDC.get("requestId"), path, ex.getMessage());
+        }
+    }
+
+    private String resolveModuleForFile(String requestedModule, boolean isZip, Path zipPath){
+        // Rule 1: if provided and not empty -> use it
+        if (StringUtils.hasText(requestedModule)) {
+            return requestedModule;
+        }
+
+        // Rule 2: if missing/blank and not zip -> "undefined"
+        if (!isZip) {
+            return "undefined";
+        }
+
+        // Rule 3: if missing/blank and zip -> try pom, else "undefined"
+        try (InputStream in = Files.newInputStream(zipPath)) {
+            String art = ZipPomUtil.extractArtifactId(in);
+            return (art != null && !art.isBlank()) ? art : "undefined";
+        } catch (IOException e) {
+            return "undefined";
         }
     }
 }
