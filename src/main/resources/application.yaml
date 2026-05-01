@@ -39,11 +39,11 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        default_schema: ingestor_db
+        default_schema: engineering-reference
 
   sql:
     init:
-      mode: always
+      mode: never
 
   task:
     execution:
