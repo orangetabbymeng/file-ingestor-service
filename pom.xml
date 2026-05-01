@@ -5,12 +5,12 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.6</version>
+        <version>3.5.14</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.sulaksono</groupId>
     <artifactId>file-ingestor-service</artifactId>
-    <version>0.0.2-SNAPSHOT</version>
+    <version>1.0.0-SNAPSHOT</version>
     <name>file-ingestor-service</name>
     <description>file-ingestor-service</description>
     <url/>
@@ -81,14 +81,14 @@
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-model</artifactId>
-            <version>3.9.11</version>
+            <version>3.9.15</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.apache.maven/maven-model-builder -->
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-model-builder</artifactId>
-            <version>3.9.11</version>
+            <version>3.9.15</version>
         </dependency>
 
         <!-- Azure OpenAI without Netty-->
