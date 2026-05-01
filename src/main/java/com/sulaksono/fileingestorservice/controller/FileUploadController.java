@@ -48,16 +48,19 @@ public class FileUploadController {
 
     @Operation(summary = "Upload one or many files or ZIP archives")
     @PostMapping(
-            value    = "/upload",
+            value = "/upload",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
     )
-    @SecurityRequirement(name = "basicAuth")
-    @PreAuthorize("hasRole('UPLOAD')")
+    @SecurityRequirement(name = "keycloak")
+    @PreAuthorize("hasAnyRole('embedding-user','embedding-admin','assistant-admin')")
     public ResponseEntity<UploadResponse> upload(
-            @RequestPart("files")  @NotEmpty MultipartFile[] files,
+            @RequestPart("files") @NotEmpty MultipartFile[] files,
             @RequestPart("module") @NotBlank String module,
-            @RequestPart("fileVersion") String fileVersion) {
+            @RequestPart("fileVersion") String fileVersion,
+            @RequestPart("repoCloneUrl") String repoCloneUrl,
+            @RequestPart("repoRef") String repoRef,
+            @RequestPart("pathInRepo") String pathInRepo) {
 
         final String requestId = UUID.randomUUID().toString();
         MDC.put("requestId", requestId);
@@ -96,7 +99,7 @@ public class FileUploadController {
                         log.debug("event=zip_saved requestId={} path={}", requestId, zipPath);
 
                         try {
-                            final String derivedModule  = resolveModuleName(module, zipPath);
+                            final String derivedModule = resolveModuleName(module, zipPath);
                             final String derivedVersion = resolveModuleVersion(zipPath);
                             log.debug("event=zip_metadata requestId={} derivedModule={} derivedVersion={}",
                                     requestId, derivedModule, derivedVersion);
@@ -105,7 +108,7 @@ public class FileUploadController {
                                     .filter(p -> FileTypeResolver.resolve(p.getFileName().toString()) != FileType.UNKNOWN)
                                     .forEach(p -> {
                                         log.debug("event=dispatch_async requestId={} file={}", requestId, p);
-                                        processor.processAsync(p, derivedModule, derivedVersion);
+                                        processor.processAsync(p, derivedModule, derivedVersion, repoCloneUrl, repoRef, pathInRepo);
                                     });
 
                             accepted.add(original);
@@ -116,7 +119,7 @@ public class FileUploadController {
                     } else {                                          // regular file
                         Path stored = storage.save(file);
                         log.debug("event=file_saved requestId={} path={}", requestId, stored);
-                        processor.processAsync(stored, module, fileVersion);
+                        processor.processAsync(stored, module, fileVersion, repoCloneUrl, repoRef, pathInRepo);
                         accepted.add(original);
                         log.info("event=file_accepted requestId={} fileName={}", requestId, original);
                     }
@@ -137,7 +140,8 @@ public class FileUploadController {
         }
     }
 
-    public record UploadResponse(List<String> accepted, List<String> rejected) { }
+    public record UploadResponse(List<String> accepted, List<String> rejected) {
+    }
 
     private String validate(MultipartFile file, String originalName) {
 
