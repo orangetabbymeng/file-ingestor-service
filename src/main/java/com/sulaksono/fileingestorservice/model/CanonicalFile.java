@@ -54,7 +54,6 @@ public class CanonicalFile {
     @Column(nullable = false, length = 1024)
     private String pathInRepo;
 
-    @Lob
     @Column(columnDefinition = "text")
     private String content; // nullable cache
 

@@ -58,9 +58,9 @@ public class FileUploadController {
             @RequestPart("files") @NotEmpty MultipartFile[] files,
             @RequestPart(name = "module", required = false) String module,
             @RequestPart("fileVersion") String fileVersion,
-            @RequestPart("repoCloneUrl") String repoCloneUrl,
-            @RequestPart("repoRef") String repoRef,
-            @RequestPart("pathInRepo") String pathInRepo) {
+            @RequestPart(name = "repoCloneUrl",required = false) String repoCloneUrl,
+            @RequestPart(name = "repoRef", required = false) String repoRef,
+            @RequestPart(name = "pathInRepo", required = false) String pathInRepo) {
 
         final String requestId = UUID.randomUUID().toString();
         MDC.put("requestId", requestId);
