@@ -11,7 +11,7 @@ import java.util.UUID;
 
 @Getter
 @Entity
-@Table(name = "file_embeddings", schema = "engineering-reference")
+@Table(name = "file_embeddings", schema = "engineering_reference")
 public class FileEmbedding {
 
     @Id

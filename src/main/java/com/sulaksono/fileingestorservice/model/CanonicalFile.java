@@ -16,7 +16,7 @@ import java.util.UUID;
 @Entity
 @Table(
         name = "canonical_files",
-        schema = "engineering-reference",
+        schema = "engineering_reference",
         indexes = {
                 @Index(name = "ix_canonical_files_path", columnList = "path"),
                 @Index(name = "ix_canonical_files_module", columnList = "module"),
