@@ -9,15 +9,9 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * JPA entity mapped to table file_embeddings with a pgvector column.
- */
 @Getter
 @Entity
-@Table(
-        name = "file_embeddings",
-        schema = "ingestor_db"
-)
+@Table(name = "file_embeddings", schema = "engineering-reference")
 public class FileEmbedding {
 
     @Id
@@ -26,8 +20,8 @@ public class FileEmbedding {
 
     private String fileName;
 
-    private String path;      //  e.g. src/main/resources/application.yaml
-    private String module;    //  e.g. order-service
+    private String path;
+    private String module;
 
     @Enumerated(EnumType.STRING)
     private FileType fileType;
@@ -45,12 +39,16 @@ public class FileEmbedding {
 
     private final boolean deprecated = false;
 
-    private int    chunkIdx;      // 0-based
-    private int    chunkOf;       // total chunks
+    private int chunkIdx;
+    private int chunkOf;
 
     private String moduleVersion;
 
-    protected FileEmbedding() { }
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "canonical_file_id", nullable = false)
+    private CanonicalFile canonicalFile;
+
+    protected FileEmbedding() {}
 
     public FileEmbedding(String fileName,
                          String path,
@@ -60,16 +58,17 @@ public class FileEmbedding {
                          FileType fileType,
                          float[] embedding,
                          String content,
-                         String moduleVersion) {
-        this.fileName  = fileName;
-        this.path      = path;
-        this.module    = module;
-        this.chunkIdx  = chunkIdx;
-        this.chunkOf   = chunkOf;
-        this.fileType  = fileType;
+                         String moduleVersion,
+                         CanonicalFile canonicalFile) {
+        this.fileName = fileName;
+        this.path = path;
+        this.module = module;
+        this.chunkIdx = chunkIdx;
+        this.chunkOf = chunkOf;
+        this.fileType = fileType;
         this.embedding = embedding;
-        this.content   = content;
+        this.content = content;
         this.moduleVersion = moduleVersion;
+        this.canonicalFile = canonicalFile;
     }
-
 }

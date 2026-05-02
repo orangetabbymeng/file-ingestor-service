@@ -10,6 +10,12 @@ spring:
       max-file-size: 100MB
       max-request-size: 100MB
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${keycloak_issuer_uri:${engineering_assistant_issuer_uri:https://hcidpgkeycloak.wittyforest-997b7bd9.southeastasia.azurecontainerapps.io/realms/nonprod-master}}
+
   datasource:
     url: ${pg_db_url}
     driver-class-name: org.postgresql.Driver
@@ -28,16 +34,16 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     open-in-view: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        default_schema: ingestor_db
+        default_schema: engineering-reference
 
   sql:
     init:
-      mode: always
+      mode: never
 
   task:
     execution:
@@ -51,6 +57,11 @@ spring:
       pool:
         size: 2
 
+springdoc:
+  swagger-ui:
+    oauth:
+      client-id: ${swagger_oauth_client_id:embedding-service}
+      use-pkce-with-authorization-code-grant: true
 
 azure:
   openai:
@@ -69,7 +80,3 @@ logging:
     root: ${root_log_level:INFO}
     org.hibernate.SQL: ${hibernate_log_level:INFO}
     com.sulaksono.fileingestorservice: ${service_log_level:INFO}
-auth:
-  basic:
-    user-name: ${basic_auth_user}
-    password: ${basic_auth_pass}

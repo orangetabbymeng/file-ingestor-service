@@ -28,8 +28,8 @@ public class EmbeddingAdminController {
     /* ------------------------------------------------------------------
        SOFT delete or restore a whole module
        ------------------------------------------------------------------ */
-    @PreAuthorize("hasRole('DEPRECATE')")
-    @SecurityRequirement(name = "basicAuth")
+    @SecurityRequirement(name = "keycloak")
+    @PreAuthorize("hasAnyRole('embedding-user','embedding-admin','assistant-admin')")
     @PatchMapping("/module/{module}")
     public ResponseEntity<?> markDeprecated(@PathVariable String module,
                                             @RequestParam(defaultValue = "true") boolean deprecated) {
@@ -64,8 +64,8 @@ public class EmbeddingAdminController {
        HARD delete – physical removal (irreversible)
        ------------------------------------------------------------------ */
     @DeleteMapping("/module/{module}")
-    @SecurityRequirement(name = "basicAuth")
-    @PreAuthorize("hasRole('DELETE')")
+    @SecurityRequirement(name = "keycloak")
+    @PreAuthorize("hasAnyRole('embedding-user','embedding-admin','assistant-admin')")
     @Transactional
     public ResponseEntity<?> hardDelete(@PathVariable @NotBlank String module) {
         final String requestId = UUID.randomUUID().toString();
