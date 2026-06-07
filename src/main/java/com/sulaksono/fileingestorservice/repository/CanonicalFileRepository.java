@@ -53,4 +53,8 @@ public interface CanonicalFileRepository extends JpaRepository<CanonicalFile, UU
             @Param("moduleVersion") String moduleVersion,
             @Param("path") String path
     );
+
+    @Modifying
+    @org.springframework.transaction.annotation.Transactional
+    void deleteByModule(String module);
 }

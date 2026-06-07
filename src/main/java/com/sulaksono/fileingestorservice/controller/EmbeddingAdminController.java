@@ -1,5 +1,6 @@
 package com.sulaksono.fileingestorservice.controller;
 
+import com.sulaksono.fileingestorservice.repository.CanonicalFileRepository;
 import com.sulaksono.fileingestorservice.repository.FileEmbeddingRepository;
 import com.sulaksono.fileingestorservice.service.ReembeddingService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -22,7 +23,8 @@ public class EmbeddingAdminController {
 
     private static final Logger log = LoggerFactory.getLogger(EmbeddingAdminController.class);
 
-    private final FileEmbeddingRepository repo;
+    private final FileEmbeddingRepository embeddingRepository;
+    private final CanonicalFileRepository canonicalFileRepository;
     private final ReembeddingService reembed;
 
     /* ------------------------------------------------------------------
@@ -41,7 +43,7 @@ public class EmbeddingAdminController {
                 requestId, module, deprecated);
 
         try {
-            int rows = repo.markDeprecatedByModule(module, deprecated);
+            int rows = embeddingRepository.markDeprecatedByModule(module, deprecated);
             log.debug("event=db_update requestId={} module={} rowsAffected={}",
                     requestId, module, rows);
 
@@ -74,7 +76,8 @@ public class EmbeddingAdminController {
         log.info("event=hard_delete_start requestId={} module={}", requestId, module);
 
         try {
-            repo.deleteByModule(module);
+            embeddingRepository.deleteByModule(module);
+            canonicalFileRepository.deleteByModule(module);
             log.info("event=hard_delete_complete requestId={} module={}", requestId, module);
             return ResponseEntity.ok("deleted all rows for module: " + module);
         } catch (Exception e) {

@@ -1,5 +1,6 @@
 package com.sulaksono.fileingestorservice.controller;
 
+import com.sulaksono.fileingestorservice.repository.CanonicalFileRepository;
 import com.sulaksono.fileingestorservice.repository.FileEmbeddingRepository;
 import com.sulaksono.fileingestorservice.service.ReembeddingService;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,9 @@ class EmbeddingAdminControllerTest {
 
     @MockBean
     private FileEmbeddingRepository repo;
+
+    @MockBean
+    private CanonicalFileRepository cfRepo;
 
     @MockBean
     private ReembeddingService reembed;
@@ -58,6 +62,7 @@ class EmbeddingAdminControllerTest {
                 .andExpect(content().string("deleted all rows for module: demo"));
 
         verify(repo).deleteByModule("demo");
+        verify(cfRepo).deleteByModule("demo");
         verifyNoInteractions(reembed);
     }
 }
