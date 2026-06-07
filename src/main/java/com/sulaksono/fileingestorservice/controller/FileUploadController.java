@@ -4,6 +4,7 @@ import com.sulaksono.fileingestorservice.model.FileType;
 import com.sulaksono.fileingestorservice.service.FileStorageService;
 import com.sulaksono.fileingestorservice.service.ProcessingService;
 import com.sulaksono.fileingestorservice.util.FileTypeResolver;
+import com.sulaksono.fileingestorservice.util.ZipGradleUtil;
 import com.sulaksono.fileingestorservice.util.ZipPomUtil;
 import com.sulaksono.fileingestorservice.util.ZipUtil;
 import io.swagger.v3.oas.annotations.Operation;
@@ -57,7 +58,7 @@ public class FileUploadController {
     public ResponseEntity<UploadResponse> upload(
             @RequestPart("files") @NotEmpty MultipartFile[] files,
             @RequestPart(name = "module", required = false) String module,
-            @RequestPart("fileVersion") String fileVersion,
+            @RequestPart(name = "fileVersion", required = false) String fileVersion,
             @RequestPart(name = "repoCloneUrl",required = false) String repoCloneUrl,
             @RequestPart(name = "repoRef", required = false) String repoRef,
             @RequestPart(name = "pathInRepo", required = false) String pathInRepo) {
@@ -78,7 +79,7 @@ public class FileUploadController {
                 log.debug("event=file_received requestId={} fileName={} size={}",
                         requestId, original, file.getSize());
 
-                String rejectionReason = validate(file, original);
+                String rejectionReason = validate(file, original, fileVersion);
                 if (rejectionReason != null) {
                     log.warn("event=file_rejected requestId={} reason=\"{}\"",
                             requestId, rejectionReason);
@@ -99,17 +100,24 @@ public class FileUploadController {
                         log.debug("event=zip_saved requestId={} path={}", requestId, zipPath);
 
                         try {
-                            final String derivedModule = resolveModuleForFile(module, true, zipPath);
-                            final String derivedVersion = resolveModuleVersion(zipPath);
+                            final String derivedModule = resolveZipModule(module, zipPath);
+                            final String derivedVersion = resolveZipVersion(fileVersion, zipPath);
                             log.debug("event=zip_metadata requestId={} derivedModule={} derivedVersion={}",
                                     requestId, derivedModule, derivedVersion);
 
-                            ZipUtil.unzip(file, zipPath.getParent()).stream()
+                            if (!StringUtils.hasText(derivedVersion)) {
+                                rejected.add(original + " (missing version in package and request)");
+                                continue;
+                            }
+
+                            Path baseDir = Optional.ofNullable(zipPath.getParent()).orElse(Path.of("."));
+
+                            Path extractDir = Files.createTempDirectory(baseDir, "unzipped-");
+
+                            ZipUtil.unzip(zipPath, extractDir).stream()
+                                    .filter(Files::isRegularFile)
                                     .filter(p -> FileTypeResolver.resolve(p.getFileName().toString()) != FileType.UNKNOWN)
-                                    .forEach(p -> {
-                                        log.debug("event=dispatch_async requestId={} file={}", requestId, p);
-                                        processor.processAsync(p, derivedModule, derivedVersion, repoCloneUrl, repoRef, pathInRepo);
-                                    });
+                                    .forEach(p -> processor.processAsync(p, derivedModule, derivedVersion, repoCloneUrl, repoRef, pathInRepo));
 
                             accepted.add(original);
                             log.info("event=zip_file_accepted requestId={} fileName={}", requestId, original);
@@ -144,20 +152,23 @@ public class FileUploadController {
     public record UploadResponse(List<String> accepted, List<String> rejected) {
     }
 
-    private String validate(MultipartFile file, String originalName) {
+    private String validate(MultipartFile file, String originalName, String requestedVersion) {
 
-        if (!StringUtils.hasText(originalName)) {
-            return "Unnamed file";
-        }
-        if (file.isEmpty()) {
-            return originalName + " (empty)";
-        }
+        if (!StringUtils.hasText(originalName)) return "Unnamed file";
+        if (file.isEmpty()) return originalName + " (empty)";
 
         boolean isZip = originalName.toLowerCase().endsWith(".zip");
+
+        // Non-zip: must have a version
+        if (!isZip && !StringUtils.hasText(requestedVersion)) {
+            return originalName + " (missing fileVersion)";
+        }
+
         if (!isZip && FileTypeResolver.resolve(originalName) == FileType.UNKNOWN) {
             return originalName + " (unsupported type)";
         }
-        return null;  // accept
+
+        return null;
     }
 
     private String resolveModuleName(String requestedModule, Path zipPath) {
@@ -177,16 +188,14 @@ public class FileUploadController {
         }
     }
 
-    private String resolveModuleVersion(Path zipPath) {
+    private String resolveModuleVersion(String requestedVersion, Path zipPath) {
+        String fallback = StringUtils.hasText(requestedVersion) ? requestedVersion : null;
+
         try (InputStream in = Files.newInputStream(zipPath)) {
             String version = ZipPomUtil.extractVersion(in);
-            log.debug("event=module_version_resolved requestId={} zip={} version={}",
-                    MDC.get("requestId"), zipPath.getFileName(), version);
-            return version;
+            return StringUtils.hasText(version) ? version : fallback;
         } catch (IOException e) {
-            log.debug("event=version_extract_failed requestId={} zip={} msg={}",
-                    MDC.get("requestId"), zipPath.getFileName(), e.getMessage());
-            return null;
+            return fallback;
         }
     }
 
@@ -201,23 +210,71 @@ public class FileUploadController {
         }
     }
 
-    private String resolveModuleForFile(String requestedModule, boolean isZip, Path zipPath){
-        // Rule 1: if provided and not empty -> use it
-        if (StringUtils.hasText(requestedModule)) {
+    private String resolveModuleForFile(String requestedModule, boolean isZip, Path zipPath) {
+
+        boolean deriveFromPackage = "from-package".equalsIgnoreCase(requestedModule);
+
+        // Rule 1: if provided AND not "from-package" -> use it
+        if (StringUtils.hasText(requestedModule) && !deriveFromPackage) {
             return requestedModule;
         }
 
-        // Rule 2: if missing/blank and not zip -> "undefined"
+        // Rule 2: if not zip -> "undefined" (or derive from filename if you want)
         if (!isZip) {
             return "undefined";
         }
 
-        // Rule 3: if missing/blank and zip -> try pom, else "undefined"
+        // Rule 3: zip + (module missing OR from-package) -> derive from package
         try (InputStream in = Files.newInputStream(zipPath)) {
-            String art = ZipPomUtil.extractArtifactId(in);
+            String art = ZipPomUtil.extractArtifactId(in); // extend later to Gradle/composer/pyproject/Cargo/csproj
             return (art != null && !art.isBlank()) ? art : "undefined";
         } catch (IOException e) {
             return "undefined";
         }
+    }
+
+    private String resolveZipModule(String requestedModule, Path zipPath) {
+        boolean fromPackage = "from-package".equalsIgnoreCase(requestedModule);
+
+        // if explicitly provided and not from-package -> use it
+        if (StringUtils.hasText(requestedModule) && !fromPackage) return requestedModule;
+
+        // derive from ZIP (pom first, then gradle)
+        String fromPom;
+        try (InputStream in = Files.newInputStream(zipPath)) {
+            fromPom = ZipPomUtil.extractArtifactId(in);
+        } catch (IOException e) {
+            fromPom = null;
+        }
+        if (StringUtils.hasText(fromPom)) return fromPom;
+
+        String fromGradle;
+        try (InputStream in = Files.newInputStream(zipPath)) {
+            fromGradle = ZipGradleUtil.extractRootProjectName(in);
+        } catch (IOException e) {
+            fromGradle = null;
+        }
+        return StringUtils.hasText(fromGradle) ? fromGradle : "undefined";
+    }
+
+    private String resolveZipVersion(String requestedVersion, Path zipPath) {
+        // derive from ZIP (pom first, then gradle), fallback to request version
+        String fromPom;
+        try (InputStream in = Files.newInputStream(zipPath)) {
+            fromPom = ZipPomUtil.extractVersion(in);
+        } catch (IOException e) {
+            fromPom = null;
+        }
+        if (StringUtils.hasText(fromPom)) return fromPom;
+
+        String fromGradle;
+        try (InputStream in = Files.newInputStream(zipPath)) {
+            fromGradle = ZipGradleUtil.extractVersion(in);
+        } catch (IOException e) {
+            fromGradle = null;
+        }
+        if (StringUtils.hasText(fromGradle)) return fromGradle;
+
+        return StringUtils.hasText(requestedVersion) ? requestedVersion : null;
     }
 }
