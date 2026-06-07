@@ -17,19 +17,30 @@ public final class ZipUtil {
 
     private ZipUtil() { }
 
+    public static List<Path> unzip(Path zipPath, Path targetDir) throws IOException {
+        try (InputStream is = Files.newInputStream(zipPath)) {
+            return unzip(is, targetDir);
+        }
+    }
+
     public static List<Path> unzip(MultipartFile zip, Path targetDir) throws IOException {
+        try (InputStream is = zip.getInputStream()) {
+            return unzip(is, targetDir);
+        }
+    }
+
+    private static List<Path> unzip(InputStream is, Path targetDir) throws IOException {
         List<Path> extracted = new ArrayList<>();
 
-        try (InputStream is = zip.getInputStream();
-             ZipInputStream zis = new ZipInputStream(is)) {
-
+        try (ZipInputStream zis = new ZipInputStream(is)) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
                 if (entry.isDirectory()) continue;
 
                 Path resolved = targetDir.resolve(entry.getName()).normalize();
-                if (!resolved.startsWith(targetDir))
+                if (!resolved.startsWith(targetDir)) {
                     throw new IOException("Zip-Slip attack detected: " + entry.getName());
+                }
 
                 Files.createDirectories(resolved.getParent());
                 Files.copy(zis, resolved, StandardCopyOption.REPLACE_EXISTING);
