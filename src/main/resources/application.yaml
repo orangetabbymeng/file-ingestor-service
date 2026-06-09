@@ -74,6 +74,7 @@ storage:
 
 vector:
   include-path-depth: 2       # 0 = file name only; 2 = e.g. resources/application.yaml
+  max-chunks-per-file: 100
 
 logging:
   level:

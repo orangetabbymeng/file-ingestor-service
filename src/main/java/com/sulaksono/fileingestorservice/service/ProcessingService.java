@@ -88,6 +88,15 @@ public class ProcessingService {
                     vecProps.getChunkOverlapTokens()
             );
 
+            int originalChunks = chunks.size();
+            int maxChunks = vecProps.getMaxChunksPerFile();
+
+            if (maxChunks > 0 && originalChunks > maxChunks) {
+                log.info("event=file_truncated requestId={} file={} originalChunks={} processedChunks={} skippedChunks={}",
+                        requestId, trimmedPath, originalChunks, maxChunks, (originalChunks - maxChunks));
+                chunks = new ArrayList<>(chunks.subList(0, maxChunks));
+            }
+
             log.debug("event=token_split requestId={} file={} chunks={} window={} overlap={}",
                     requestId, filePath, chunks.size(),
                     vecProps.getChunkSizeTokens(), vecProps.getChunkOverlapTokens());

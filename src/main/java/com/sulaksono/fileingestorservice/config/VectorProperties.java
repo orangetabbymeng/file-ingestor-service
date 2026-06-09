@@ -21,4 +21,7 @@ public class VectorProperties {
 
     private int chunkSizeTokens    = 800;   // window size
     private int chunkOverlapTokens = 100;   // overlap
+
+    @Min(0)
+    private int maxChunksPerFile = 0;
 }
