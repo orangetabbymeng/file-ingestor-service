@@ -37,7 +37,7 @@ public class FileEmbedding {
     @Column(columnDefinition = "text")
     private String content;
 
-    private final boolean deprecated = false;
+    private boolean deprecated = false;
 
     private int chunkIdx;
     private int chunkOf;
@@ -48,7 +48,7 @@ public class FileEmbedding {
     @JoinColumn(name = "canonical_file_id", nullable = false)
     private CanonicalFile canonicalFile;
 
-    protected FileEmbedding() {}
+    public FileEmbedding() {}
 
     public FileEmbedding(String fileName,
                          String path,

@@ -22,34 +22,59 @@ public class EmbeddingService {
     private final OpenAIClient client;
     private final AzureOpenAIProperties props;
 
-    public EmbeddingService(OpenAIClient client, AzureOpenAIProperties props) {
+    public EmbeddingService(OpenAIClient client,
+                            AzureOpenAIProperties props) {
         this.client = client;
         this.props = props;
     }
 
     public float[] generateEmbedding(String input) {
 
+        if (input == null || input.isBlank()) {
+            throw new IllegalArgumentException("input cannot be blank");
+        }
+
         String requestId = MDC.get("requestId");
-        log.debug("event=embedding_start requestId={} inputLength={}", requestId, input.length());
+
+        log.debug(
+                "event=embedding_start requestId={} inputLength={}",
+                requestId,
+                input.length());
 
         try {
-            EmbeddingsOptions options = new EmbeddingsOptions(List.of(input));
-            Embeddings response = client.getEmbeddings(props.getEmbeddingModelDeployment(), options);
+            Embeddings response = client.getEmbeddings(
+                    props.getEmbeddingModelDeployment(),
+                    new EmbeddingsOptions(List.of(input))
+            );
 
-            List<Float> list = response.getData()
-                    .getFirst()   // first EmbeddingItem
-                    .getEmbedding();
-
-            float[] vector = new float[list.size()];
-            for (int i = 0; i < list.size(); i++) {
-                vector[i] = list.get(i);
+            if (response.getData() == null || response.getData().isEmpty()) {
+                throw new IllegalStateException(
+                        "Azure OpenAI returned no embeddings");
             }
 
-            log.info("event=embedding_success requestId={} dimension={}", requestId, vector.length);
+            List<Float> embedding =
+                    response.getData().getFirst().getEmbedding();
+
+            float[] vector = new float[embedding.size()];
+
+            for (int i = 0; i < embedding.size(); i++) {
+                vector[i] = embedding.get(i);
+            }
+
+            log.info(
+                    "event=embedding_success requestId={} dimension={}",
+                    requestId,
+                    vector.length);
+
             return vector;
 
         } catch (Exception e) {
-            log.error("event=embedding_error requestId={} error={}", requestId, e, e);
+            log.error(
+                    "event=embedding_error requestId={} message={}",
+                    requestId,
+                    e.getMessage(),
+                    e);
+
             throw e;
         }
     }

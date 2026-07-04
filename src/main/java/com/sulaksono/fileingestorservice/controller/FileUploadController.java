@@ -9,7 +9,6 @@ import com.sulaksono.fileingestorservice.util.ZipPomUtil;
 import com.sulaksono.fileingestorservice.util.ZipUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,16 +17,24 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.FileSystemUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * REST endpoint for receiving individual files or ZIP batches.
@@ -39,17 +46,22 @@ public class FileUploadController {
 
     private static final Logger log = LoggerFactory.getLogger(FileUploadController.class);
 
+    private static final String MDC_REQUEST_ID = "requestId";
+    private static final String FROM_PACKAGE   = "from-package";
+    private static final String DEFAULT_MODULE = "undefined";
+    private static final String ZIP_SUFFIX     = ".zip";
+
     private final FileStorageService storage;
     private final ProcessingService processor;
 
     public FileUploadController(FileStorageService storage, ProcessingService processor) {
-        this.storage = storage;
+        this.storage   = storage;
         this.processor = processor;
     }
 
     @Operation(summary = "Upload one or many files or ZIP archives")
     @PostMapping(
-            value = "/upload",
+            value    = "/upload",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
     )
@@ -57,224 +69,211 @@ public class FileUploadController {
     @PreAuthorize("hasAnyRole('embedding-user','embedding-admin','assistant-admin')")
     public ResponseEntity<UploadResponse> upload(
             @RequestPart("files") @NotEmpty MultipartFile[] files,
-            @RequestPart(name = "module", required = false) String module,
-            @RequestPart(name = "fileVersion", required = false) String fileVersion,
-            @RequestPart(name = "repoCloneUrl",required = false) String repoCloneUrl,
-            @RequestPart(name = "repoRef", required = false) String repoRef,
-            @RequestPart(name = "pathInRepo", required = false) String pathInRepo) {
+            @RequestPart(name = "module",       required = false) String module,
+            @RequestPart(name = "fileVersion",  required = false) String fileVersion,
+            @RequestPart(name = "repoCloneUrl", required = false) String repoCloneUrl,
+            @RequestPart(name = "repoRef",      required = false) String repoRef,
+            @RequestPart(name = "pathInRepo",   required = false) String pathInRepo) {
 
         final String requestId = UUID.randomUUID().toString();
-        MDC.put("requestId", requestId);
-
-        log.info("event=upload_start requestId={} module={} version={} fileCount={}",
-                requestId, module, fileVersion, files.length);
-
-        List<String> accepted = new ArrayList<>();
-        List<String> rejected = new ArrayList<>();
-
+        MDC.put(MDC_REQUEST_ID, requestId);
         try {
+            log.info("event=upload_start requestId={} module={} version={} fileCount={}",
+                    requestId, module, fileVersion, files.length);
+
+            List<String> accepted = new ArrayList<>();
+            List<String> rejected = new ArrayList<>();
+
             for (MultipartFile file : files) {
-
-                String original = file.getOriginalFilename();
-                log.debug("event=file_received requestId={} fileName={} size={}",
-                        requestId, original, file.getSize());
-
-                String rejectionReason = validate(file, original, fileVersion);
-                if (rejectionReason != null) {
-                    log.warn("event=file_rejected requestId={} reason=\"{}\"",
-                            requestId, rejectionReason);
-                    rejected.add(rejectionReason);
-                    continue;
-                }
-
-                boolean isZip = Optional.ofNullable(original)
-                        .map(n -> n.toLowerCase(Locale.ROOT).endsWith(".zip"))
-                        .orElse(false);
-
-                log.debug("event=file_validated requestId={} fileName={} isZip={}",
-                        requestId, original, isZip);
-
-                try {
-                    if (isZip) {
-                        Path zipPath = storage.save(file);             // persist the ZIP
-                        log.debug("event=zip_saved requestId={} path={}", requestId, zipPath);
-
-                        try {
-                            final String derivedModule = resolveZipModule(module, zipPath);
-                            final String derivedVersion = resolveZipVersion(fileVersion, zipPath);
-                            log.debug("event=zip_metadata requestId={} derivedModule={} derivedVersion={}",
-                                    requestId, derivedModule, derivedVersion);
-
-                            if (!StringUtils.hasText(derivedVersion)) {
-                                rejected.add(original + " (missing version in package and request)");
-                                continue;
-                            }
-
-                            Path baseDir = Optional.ofNullable(zipPath.getParent()).orElse(Path.of("."));
-
-                            Path extractDir = Files.createTempDirectory(baseDir, "unzipped-");
-
-                            ZipUtil.unzip(zipPath, extractDir).stream()
-                                    .filter(Files::isRegularFile)
-                                    .filter(p -> FileTypeResolver.resolve(p.getFileName().toString()) != FileType.UNKNOWN)
-                                    .forEach(p -> processor.processAsync(p, derivedModule, derivedVersion, repoCloneUrl, repoRef, pathInRepo));
-
-                            accepted.add(original);
-                            log.info("event=zip_file_accepted requestId={} fileName={}", requestId, original);
-                        } finally {
-                            deleteQuietly(zipPath);
-                        }
-                    } else {                                          // regular file
-                        Path stored = storage.save(file);
-                        log.debug("event=file_saved requestId={} path={}", requestId, stored);
-                        String effectiveModule = resolveModuleForFile(module, false, null);
-                        processor.processAsync(stored, effectiveModule, fileVersion, repoCloneUrl, repoRef, pathInRepo);
-                        accepted.add(original);
-                        log.info("event=file_accepted requestId={} fileName={}", requestId, original);
-                    }
-                } catch (Exception e) {
-                    log.error("event=file_failure requestId={} fileName={} error={}",
-                            requestId, original, e, e);
-                    rejected.add(original + " (" + e.getMessage() + ")");
-                }
+                handleFile(file, module, fileVersion, repoCloneUrl, repoRef, pathInRepo,
+                        accepted, rejected, requestId);
             }
 
-            UploadResponse body = new UploadResponse(accepted, rejected);
             log.info("event=upload_complete requestId={} acceptedCount={} rejectedCount={}",
                     requestId, accepted.size(), rejected.size());
 
-            return ResponseEntity.status(HttpStatus.ACCEPTED).body(body);
+            return ResponseEntity.status(HttpStatus.ACCEPTED)
+                    .body(new UploadResponse(accepted, rejected));
         } finally {
-            MDC.remove("requestId");   // clean up to avoid leaking correlation IDs
+            MDC.remove(MDC_REQUEST_ID);
         }
     }
 
-    public record UploadResponse(List<String> accepted, List<String> rejected) {
+    // ---------- per-file pipeline ----------
+
+    private void handleFile(MultipartFile file,
+                            String module, String fileVersion,
+                            String repoCloneUrl, String repoRef, String pathInRepo,
+                            List<String> accepted, List<String> rejected,
+                            String requestId) {
+
+        final String original = file.getOriginalFilename();
+        log.debug("event=file_received requestId={} fileName={} size={}",
+                requestId, original, file.getSize());
+
+        String rejection = validate(file, original, fileVersion);
+        if (rejection != null) {
+            log.warn("event=file_rejected requestId={} reason=\"{}\"", requestId, rejection);
+            rejected.add(rejection);
+            return;
+        }
+
+        boolean isZip = isZip(original);
+        log.debug("event=file_validated requestId={} fileName={} isZip={}",
+                requestId, original, isZip);
+
+        try {
+            if (isZip) {
+                handleZip(file, original, module, fileVersion,
+                        repoCloneUrl, repoRef, pathInRepo, accepted, rejected, requestId);
+            } else {
+                handleRegular(file, original, module, fileVersion,
+                        repoCloneUrl, repoRef, pathInRepo, accepted, requestId);
+            }
+        } catch (Exception e) {
+            log.error("event=file_failure requestId={} fileName={} error={}",
+                    requestId, original, e.getMessage(), e);
+            rejected.add(original + " (" + e.getMessage() + ")");
+        }
     }
 
+    private void handleRegular(MultipartFile file, String original,
+                               String module, String fileVersion,
+                               String repoCloneUrl, String repoRef, String pathInRepo,
+                               List<String> accepted, String requestId) throws IOException {
+        Path stored = storage.save(file);
+        log.debug("event=file_saved requestId={} path={}", requestId, stored);
+
+        String effectiveModule = StringUtils.hasText(module) && !FROM_PACKAGE.equalsIgnoreCase(module)
+                ? module
+                : DEFAULT_MODULE;
+
+        processor.processAsync(stored, effectiveModule, fileVersion, repoCloneUrl, repoRef, pathInRepo);
+        accepted.add(original);
+        log.info("event=file_accepted requestId={} fileName={}", requestId, original);
+    }
+
+    private void handleZip(MultipartFile file, String original,
+                           String module, String fileVersion,
+                           String repoCloneUrl, String repoRef, String pathInRepo,
+                           List<String> accepted, List<String> rejected,
+                           String requestId) throws IOException {
+
+        Path zipPath = storage.save(file);
+        log.debug("event=zip_saved requestId={} path={}", requestId, zipPath);
+
+        Path extractDir = null;
+        try {
+            String derivedModule  = resolveZipModule(module, zipPath);
+            String derivedVersion = resolveZipVersion(fileVersion, zipPath);
+            log.debug("event=zip_metadata requestId={} derivedModule={} derivedVersion={}",
+                    requestId, derivedModule, derivedVersion);
+
+            if (!StringUtils.hasText(derivedVersion)) {
+                rejected.add(original + " (missing version in package and request)");
+                return;
+            }
+
+            Path baseDir = Optional.ofNullable(zipPath.getParent()).orElse(Path.of("."));
+            extractDir   = Files.createTempDirectory(baseDir, "unzipped-");
+
+            ZipUtil.unzip(zipPath, extractDir).stream()
+                    .filter(Files::isRegularFile)
+                    .filter(p -> FileTypeResolver.resolve(p.getFileName().toString()) != FileType.UNKNOWN)
+                    .forEach(p -> processor.processAsync(p, derivedModule, derivedVersion,
+                            repoCloneUrl, repoRef, pathInRepo));
+
+            accepted.add(original);
+            log.info("event=zip_file_accepted requestId={} fileName={}", requestId, original);
+        } finally {
+            deleteQuietly(zipPath);
+            deleteDirQuietly(extractDir);
+        }
+    }
+
+    // ---------- validation ----------
+
     private String validate(MultipartFile file, String originalName, String requestedVersion) {
-
         if (!StringUtils.hasText(originalName)) return "Unnamed file";
-        if (file.isEmpty()) return originalName + " (empty)";
+        if (file.isEmpty())                     return originalName + " (empty)";
 
-        boolean isZip = originalName.toLowerCase().endsWith(".zip");
-
-        // Non-zip: must have a version
+        boolean isZip = isZip(originalName);
         if (!isZip && !StringUtils.hasText(requestedVersion)) {
             return originalName + " (missing fileVersion)";
         }
-
         if (!isZip && FileTypeResolver.resolve(originalName) == FileType.UNKNOWN) {
             return originalName + " (unsupported type)";
         }
-
         return null;
     }
 
-    private String resolveModuleName(String requestedModule, Path zipPath) {
-        if (!"from-package".equalsIgnoreCase(requestedModule)) {
-            return requestedModule;
-        }
-        try (InputStream in = Files.newInputStream(zipPath)) {
-            String art = ZipPomUtil.extractArtifactId(in);
-            String resolved = (art != null && !art.isBlank()) ? art : requestedModule;
-            log.debug("event=module_name_resolved requestId={} zip={} resolvedModule={}",
-                    MDC.get("requestId"), zipPath.getFileName(), resolved);
-            return resolved;
-        } catch (IOException e) {
-            log.warn("event=pom_inspect_failed requestId={} zip={} fallbackModule={}",
-                    MDC.get("requestId"), zipPath.getFileName(), requestedModule, e);
-            return requestedModule;
-        }
+    private static boolean isZip(String name) {
+        return name != null && name.toLowerCase(Locale.ROOT).endsWith(ZIP_SUFFIX);
     }
 
-    private String resolveModuleVersion(String requestedVersion, Path zipPath) {
-        String fallback = StringUtils.hasText(requestedVersion) ? requestedVersion : null;
-
-        try (InputStream in = Files.newInputStream(zipPath)) {
-            String version = ZipPomUtil.extractVersion(in);
-            return StringUtils.hasText(version) ? version : fallback;
-        } catch (IOException e) {
-            return fallback;
-        }
-    }
-
-    private void deleteQuietly(Path path) {
-        try {
-            if (Files.deleteIfExists(path)) {
-                log.debug("event=temp_deleted requestId={} path={}", MDC.get("requestId"), path);
-            }
-        } catch (IOException ex) {
-            log.warn("event=temp_delete_failed requestId={} path={} msg={}",
-                    MDC.get("requestId"), path, ex.getMessage());
-        }
-    }
-
-    private String resolveModuleForFile(String requestedModule, boolean isZip, Path zipPath) {
-
-        boolean deriveFromPackage = "from-package".equalsIgnoreCase(requestedModule);
-
-        // Rule 1: if provided AND not "from-package" -> use it
-        if (StringUtils.hasText(requestedModule) && !deriveFromPackage) {
-            return requestedModule;
-        }
-
-        // Rule 2: if not zip -> "undefined" (or derive from filename if you want)
-        if (!isZip) {
-            return "undefined";
-        }
-
-        // Rule 3: zip + (module missing OR from-package) -> derive from package
-        try (InputStream in = Files.newInputStream(zipPath)) {
-            String art = ZipPomUtil.extractArtifactId(in); // extend later to Gradle/composer/pyproject/Cargo/csproj
-            return (art != null && !art.isBlank()) ? art : "undefined";
-        } catch (IOException e) {
-            return "undefined";
-        }
-    }
+    // ---------- zip metadata resolution ----------
 
     private String resolveZipModule(String requestedModule, Path zipPath) {
-        boolean fromPackage = "from-package".equalsIgnoreCase(requestedModule);
-
-        // if explicitly provided and not from-package -> use it
-        if (StringUtils.hasText(requestedModule) && !fromPackage) return requestedModule;
-
-        // derive from ZIP (pom first, then gradle)
-        String fromPom;
-        try (InputStream in = Files.newInputStream(zipPath)) {
-            fromPom = ZipPomUtil.extractArtifactId(in);
-        } catch (IOException e) {
-            fromPom = null;
+        boolean fromPackage = FROM_PACKAGE.equalsIgnoreCase(requestedModule);
+        if (StringUtils.hasText(requestedModule) && !fromPackage) {
+            return requestedModule;
         }
+
+        String fromPom = readFromZip(zipPath, ZipPomUtil::extractArtifactId);
         if (StringUtils.hasText(fromPom)) return fromPom;
 
-        String fromGradle;
-        try (InputStream in = Files.newInputStream(zipPath)) {
-            fromGradle = ZipGradleUtil.extractRootProjectName(in);
-        } catch (IOException e) {
-            fromGradle = null;
-        }
-        return StringUtils.hasText(fromGradle) ? fromGradle : "undefined";
+        String fromGradle = readFromZip(zipPath, ZipGradleUtil::extractRootProjectName);
+        return StringUtils.hasText(fromGradle) ? fromGradle : DEFAULT_MODULE;
     }
 
     private String resolveZipVersion(String requestedVersion, Path zipPath) {
-        // derive from ZIP (pom first, then gradle), fallback to request version
-        String fromPom;
-        try (InputStream in = Files.newInputStream(zipPath)) {
-            fromPom = ZipPomUtil.extractVersion(in);
-        } catch (IOException e) {
-            fromPom = null;
-        }
+        String fromPom = readFromZip(zipPath, ZipPomUtil::extractVersion);
         if (StringUtils.hasText(fromPom)) return fromPom;
 
-        String fromGradle;
-        try (InputStream in = Files.newInputStream(zipPath)) {
-            fromGradle = ZipGradleUtil.extractVersion(in);
-        } catch (IOException e) {
-            fromGradle = null;
-        }
+        String fromGradle = readFromZip(zipPath, ZipGradleUtil::extractVersion);
         if (StringUtils.hasText(fromGradle)) return fromGradle;
 
         return StringUtils.hasText(requestedVersion) ? requestedVersion : null;
     }
+
+    @FunctionalInterface
+    private interface ZipReader {
+        String read(InputStream in) throws IOException;
+    }
+
+    private String readFromZip(Path zipPath, ZipReader reader) {
+        try (InputStream in = Files.newInputStream(zipPath)) {
+            return reader.read(in);
+        } catch (IOException e) {
+            log.warn("event=zip_inspect_failed requestId={} zip={} msg={}",
+                    MDC.get(MDC_REQUEST_ID), zipPath.getFileName(), e.getMessage());
+            return null;
+        }
+    }
+
+    // ---------- cleanup ----------
+
+    private void deleteQuietly(Path path) {
+        if (path == null) return;
+        try {
+            if (Files.deleteIfExists(path)) {
+                log.debug("event=temp_deleted requestId={} path={}", MDC.get(MDC_REQUEST_ID), path);
+            }
+        } catch (IOException ex) {
+            log.warn("event=temp_delete_failed requestId={} path={} msg={}",
+                    MDC.get(MDC_REQUEST_ID), path, ex.getMessage());
+        }
+    }
+
+    private void deleteDirQuietly(Path dir) {
+        if (dir == null) return;
+        try {
+            FileSystemUtils.deleteRecursively(dir);
+        } catch (IOException ex) {
+            log.warn("event=temp_dir_delete_failed requestId={} path={} msg={}",
+                    MDC.get(MDC_REQUEST_ID), dir, ex.getMessage());
+        }
+    }
+
+    public record UploadResponse(List<String> accepted, List<String> rejected) { }
 }

@@ -20,47 +20,83 @@ import java.nio.file.*;
 @Service
 public class FileStorageService {
 
-    private static final Logger log = LoggerFactory.getLogger(FileStorageService.class);
+    private static final Logger log =
+            LoggerFactory.getLogger(FileStorageService.class);
 
     private final Path rootDir;
 
     public FileStorageService(StorageProperties props) {
-        this.rootDir = Paths.get(props.getLocation()).toAbsolutePath().normalize();
+        this.rootDir =
+                Paths.get(props.getLocation())
+                        .toAbsolutePath()
+                        .normalize();
+
         log.debug("event=constructor rootDir={}", this.rootDir);
     }
 
     @PostConstruct
     void init() throws IOException {
         Files.createDirectories(rootDir);
+
         log.info("event=storage_init rootDir={}", rootDir);
     }
 
     public Path save(MultipartFile file) throws IOException {
 
         String requestId = MDC.get("requestId");
-        String original  = file.getOriginalFilename();
+        String original = file.getOriginalFilename();
 
-        log.debug("event=file_save_start requestId={} originalName={} size={}",
-                requestId, original, file.getSize());
+        if (original == null || original.isBlank()) {
+            throw new IOException("File name is required");
+        }
+
+        log.debug(
+                "event=file_save_start requestId={} originalName={} size={}",
+                requestId,
+                original,
+                file.getSize());
 
         try {
             String base = FilenameUtils.getBaseName(original);
-            String ext  = FilenameUtils.getExtension(original);
-            assert ext != null;
-            String generated = base + "-" + System.nanoTime() + (ext.isBlank() ? "" : "." + ext);
+            String ext = FilenameUtils.getExtension(original);
 
-            Path destination = rootDir.resolve(generated);
-            Files.copy(file.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
+            String generated =
+                    base +
+                            "-" +
+                            System.nanoTime() +
+                            (ext.isBlank() ? "" : "." + ext);
 
-            log.info("event=file_saved requestId={} storedName={} path={}",
-                    requestId, generated, destination);
+            Path destination =
+                    rootDir.resolve(generated)
+                            .normalize();
+
+            if (!destination.startsWith(rootDir)) {
+                throw new IOException("Invalid file path");
+            }
+
+            Files.copy(
+                    file.getInputStream(),
+                    destination,
+                    StandardCopyOption.REPLACE_EXISTING);
+
+            log.info(
+                    "event=file_saved requestId={} storedName={} path={}",
+                    requestId,
+                    generated,
+                    destination);
 
             return destination;
-        } catch (IOException e) {
-            log.error("event=file_save_error requestId={} originalName={} error={}",
-                    requestId, original, e, e);
+        }
+        catch (IOException e) {
+
+            log.error(
+                    "event=file_save_error requestId={} originalName={} message={}",
+                    requestId,
+                    original,
+                    e.getMessage(),
+                    e);
+
             throw e;
         }
-
     }
 }
